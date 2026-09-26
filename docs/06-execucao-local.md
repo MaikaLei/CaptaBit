@@ -37,3 +37,8 @@ O teste mediu aproximadamente 836 ms de tempo de parede para login local. Isso N
 ## Dependências
 
 Versões fixadas em package-lock.json. A versão instalada do Wrangler usa Miniflare 5 alpha; os testes utilizam o adaptador oficial convertV4MiniflareOptions. Revisar atualizações em alteração separada e executar os testes antes de adotá-las.
+
+## Banco local ocupado no Windows
+
+Antes de executar admin:create, pare o servidor npm run dev com Ctrl+C. Neste ambiente, a tentativa de abrir o D1 por um segundo processo enquanto o servidor estava ativo retornou SQLITE_READONLY. A gravação voltou a funcionar após parar o servidor. O script agora testa a gravação sem alterar registros antes de solicitar credenciais. Depois de criar o ADMIN, execute npm run dev novamente.
+

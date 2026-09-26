@@ -4,6 +4,19 @@ import { hashPassword } from '../src/domain/password.js';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+// Validate the local database before collecting credentials.
+const preflight = spawnSync(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'd1', 'execute', 'captabit-local', '--local', '--config', 'wrangler.local.jsonc', '--command', 'UPDATE users SET active = active WHERE 0;'], { encoding: 'utf8' });
+if (preflight.status !== 0) {
+  const detail = `${preflight.stdout || ''}\n${preflight.stderr || ''}`;
+  if (/SQLITE_READONLY|SQLITE_BUSY|database is locked/i.test(detail)) {
+    console.error('O banco local está ocupado ou sem acesso de gravação. Pare npm run dev com Ctrl+C e execute npm run admin:create novamente. Se persistir, confira as permissões da pasta.');
+  } else if (/no such table/i.test(detail)) {
+    console.error('O banco ainda não foi preparado. Execute npm run db:migrate antes de criar o administrador.');
+  } else {
+    console.error('Não foi possível verificar a gravação no banco local. Confira as permissões e o ambiente Wrangler. Nenhuma credencial foi solicitada.');
+  }
+  process.exit(1);
+}
 const prompt = createInterface({ input: stdin, output: stdout });
 const name = (await prompt.question('Nome do administrador: ')).trim();
 const email = (await prompt.question('E-mail: ')).trim().toLowerCase();
@@ -35,6 +48,6 @@ const file = `.wrangler/bootstrap/${randomUUID()}.sql`;
 try {
   await writeFile(file, `INSERT INTO users (id,name,email,password_hash,role,active,created_at) SELECT ${quote(randomUUID())},${quote(name)},${quote(email)},${quote(hash)},'ADMIN',1,${Date.now()} WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='ADMIN');`, { mode: 0o600 });
   const result = spawnSync(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'd1', 'execute', 'captabit-local', '--local', '--config', 'wrangler.local.jsonc', '--file', file], { stdio: 'inherit' });
-  if (result.status !== 0) throw new Error('Falha no cadastro. Execute npm run db:migrate primeiro.');
+  if (result.status !== 0) throw new Error('Falha na gravação. Pare o servidor local (Ctrl+C em npm run dev), confira as permissões da pasta e tente novamente.');
   console.log('Procedimento concluído. Se já havia ADMIN, nenhuma conta foi alterada. Entre na aplicação local para verificar.');
 } finally { await rm(file, { force: true }); }
