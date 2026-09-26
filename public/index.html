@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CaptaBit — by ZapBits</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" type="module"></script></head>
+<body>
+<main>
+  <section id="login-view" class="login-card">
+    <img class="brand" src="/assets/brand/captabit-logo-original.png" alt="CaptaBit — Menos cadastro, mais captação. by ZapBits">
+    <div class="intro"><span class="eyebrow">SUA ROTINA, MAIS SIMPLES</span><h1>Entre para começar.</h1><p>Seu espaço para organizar cada oportunidade.</p></div>
+    <form id="login-form"><label>E-mail<input name="email" type="email" autocomplete="username" required maxlength="254"></label><label>Senha<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label><button type="submit">Entrar</button></form>
+    <p class="note">Acesso exclusivo para usuários cadastrados pelo administrador.</p>
+  </section>
+  <section id="workspace" hidden>
+    <header><img src="/assets/brand/captabit-logo-original.png" alt="CaptaBit by ZapBits"><button id="logout" class="secondary">Sair</button></header>
+    <div class="welcome"><span class="eyebrow">BEM-VINDO AO CAPTABIT</span><h1 id="greeting"></h1><p id="profile"></p></div>
+    <section class="panel"><h2>Seu espaço está preparado.</h2><p>Login e controle de acesso disponíveis. Cadastro de captações, contatos e relatórios serão adicionados nas próximas etapas.</p></section>
+    <section id="admin-panel" class="panel" hidden><h2>Equipe</h2><p>Cadastre quem vai trabalhar com você. Cada captador terá acesso apenas à própria carteira quando o módulo de captações estiver disponível.</p>
+      <form id="user-form" class="user-form"><label>Nome<input name="name" required maxlength="100" autocomplete="off"></label><label>E-mail<input name="email" type="email" required maxlength="254" autocomplete="off"></label><label>Perfil<select name="role"><option value="CAPTADOR">Captador</option><option value="ADMIN">Administrador</option></select></label><label>Senha inicial<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"><small>De 12 a 128 caracteres.</small></label><button type="submit">Cadastrar usuário</button></form>
+      <h3>Usuários cadastrados</h3><ul id="users"></ul>
+    </section>
+  </section>
+  <p id="message" role="status" aria-live="polite"></p>
+</main>
+</body></html>

@@ -8,7 +8,7 @@ Aplicação web responsiva para organizar captações imobiliárias com cadastro
 
 ## Estado inicial
 
-Fundação documental preparada. A aplicação ainda não foi implementada ou publicada. Git local inicializado em repositório próprio, branch main. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
+Primeira etapa funcional disponível localmente: login/logout, sessões, perfis ADMIN/CAPTADOR e cadastro/ativação de usuários pelo ADMIN. Captações, contatos e relatórios ainda serão implementados. A aplicação ainda não foi publicada. Git local inicializado em repositório próprio, branch main. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
 
 ## Estrutura planejada
 
@@ -36,5 +36,4 @@ Decisões recuperadas da conversa “Melhore script captação imóveis” e da 
 
 ## Desenvolvimento
 
-Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Ainda não há aplicação executável, dependências instaláveis ou deploy configurado.
-
+Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Para instalar e executar a aplicação, siga [Execução local](docs/06-execucao-local.md). Deploy ainda não configurado.
