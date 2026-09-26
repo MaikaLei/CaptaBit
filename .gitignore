@@ -11,3 +11,6 @@ coverage/
 *.sqlite
 *.sqlite3
 backups/
+
+# Original entregue na raiz; copia oficial versionada em public/assets/brand/
+/Imagem do Codex 25 de set. de 2026, 22_14_23.png

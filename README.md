@@ -4,9 +4,11 @@
 
 Aplicação web responsiva para organizar captações imobiliárias com cadastro rápido, carteira individual e alertas globais de duplicidade.
 
+![CaptaBit by ZapBits](public/assets/brand/captabit-logo-original.png)
+
 ## Estado inicial
 
-Fundação documental preparada. A aplicação ainda não foi implementada ou publicada. Pasta selecionada: `C:\Users\maiko\OneDrive\Área de Trabalho\ZapBits\CaptaBit`. Git local inicializado em repositório próprio, branch main. GitHub e recursos Cloudflare ainda não foram criados.
+Fundação documental preparada. A aplicação ainda não foi implementada ou publicada. Git local inicializado em repositório próprio, branch main. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
 
 ## Estrutura planejada
 
@@ -30,4 +32,9 @@ tests/                  Testes de regras, isolamento e integração
 
 Decisões recuperadas da conversa “Melhore script captação imóveis” e da solicitação de início do projeto. Propostas técnicas abaixo não significam funcionalidades já entregues.
 
+
+
+## Desenvolvimento
+
+Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Ainda não há aplicação executável, dependências instaláveis ou deploy configurado.
 
