@@ -52,5 +52,3 @@ test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
   } finally { await mf.dispose(); }
 });
 async function sha(value) { return Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))).toString('hex'); }
-
-

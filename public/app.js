@@ -6,7 +6,7 @@ async function api(path, method = 'GET', body) {
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401) showLogin();
-    throw new Error(data.error || 'Não foi possível concluir.');
+    throw Object.assign(new Error(data.error || 'Não foi possível concluir.'), { status: response.status });
   }
   return data;
 }
@@ -40,4 +40,4 @@ function handleForm(id, action) {
 handleForm('login-form', async data => { const result = await api('login', 'POST', data); await showWorkspace(result.user); });
 handleForm('user-form', async data => { await api('users', 'POST', data); await loadUsers(); message('Usuário cadastrado.'); });
 byId('logout').addEventListener('click', async () => { try { await api('logout', 'POST', {}); showLogin(); message(); } catch (error) { message(error.message); } });
-try { const result = await api('me'); await showWorkspace(result.user); } catch (error) { if (me) message(error.message); }
+try { const result = await api('me'); await showWorkspace(result.user); } catch (error) { if (error.status !== 401) message(error.message); }
