@@ -1,6 +1,6 @@
 # Contato inicial e classificação
 
-A tela prioriza o primeiro contato. Cada telefone oferece Enviar mensagem de captação, classificação e exclusão. O texto padrão aprovado é preenchido com os dados do imóvel e do usuário; a revisão e o envio são feitos no WhatsApp. Não há envio automático nem caixa de revisão no CaptaBit. Esta decisão substitui a revisão interna descrita na documentação anterior.
+A tela prioriza o primeiro contato. Cada telefone oferece Enviar mensagem de captação, classificação e exclusão. O texto padrão aprovado é preenchido com os dados do imóvel e do usuário; a revisão e o envio são feitos no WhatsApp, aberto em nova guia para manter o CaptaBit disponível. Se o navegador bloquear a guia, um link permite abri-la manualmente. Não há envio automático nem caixa de revisão no CaptaBit. Esta decisão substitui a revisão interna descrita na documentação anterior.
 
 Classificações independentes do andamento da captação: Não verificado (cinza), Contato correto (verde), Contato errado (vermelho), Sem retorno (cinza), Sem WhatsApp (cinza). Cor sempre acompanhada de texto. Contato errado ou sem WhatsApp bloqueia a abertura até reclassificação. Abrir o WhatsApp não marca mensagem enviada.
 

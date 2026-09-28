@@ -25,8 +25,13 @@ export function appendWhatsApp(card,contact,lead,api,message) {
   action.className='whatsapp-action';
   action.disabled=['INCORRECT','NO_WHATSAPP'].includes(contact.outcome);
   action.title=action.disabled ? 'Altere a classificação se este contato voltar a ser válido para WhatsApp.' : 'Abre o WhatsApp com o texto preenchido. Você revisa e confirma o envio lá.';
+  const fallback=document.createElement('a');fallback.target='_blank';fallback.rel='noopener noreferrer';fallback.hidden=true;fallback.textContent='Abrir WhatsApp em nova guia';
   action.addEventListener('click',async()=>{
-    action.disabled=true;message();
+    action.disabled=true;message();fallback.hidden=true;
+    // Reserve the tab during the click so popup blockers allow the later navigation.
+    const whatsappTab=window.open('about:blank','_blank');
+    if(whatsappTab) whatsappTab.opener=null;
+    let opened=false;
     try {
       const body={version:contact.version,templateId:'initial'};
       let result=await api(`leads/${lead.id}/whatsapp/${contact.id}`,'POST',body);
@@ -34,11 +39,11 @@ export function appendWhatsApp(card,contact,lead,api,message) {
         if(!await confirmAlerts(result.duplicates)) return;
         result=await api(`leads/${lead.id}/whatsapp/${contact.id}`,'POST',{...body,acknowledge:true});
       }
-      // Same-tab navigation works without asynchronous popup permissions.
-      window.location.assign(result.url);
-    } catch(error) {message(error.message);} finally {action.disabled=false;}
+      if(whatsappTab && !whatsappTab.closed) {whatsappTab.location.replace(result.url);opened=true;}
+      else {fallback.href=result.url;fallback.hidden=false;message('Clique em Abrir WhatsApp em nova guia para continuar.');}
+    } catch(error) {message(error.message);} finally {if(!opened && whatsappTab && !whatsappTab.closed) whatsappTab.close();action.disabled=false;}
   });
-  card.append(action);
+  card.append(action,fallback);
 }
 export function confirmDeleteContact(phone) {
   return new Promise(resolve=>{
