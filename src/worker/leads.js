@@ -78,7 +78,7 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     if (!Number.isSafeInteger(body.version)) invalid('Versão inválida.');
     const allowed = [...leadFields,'status','version','owner_id'];
     if (Object.keys(body).some(key => !allowed.includes(key))) invalid('Campo não permitido.');
-    const fields = leadInput({ ...lead, ...body }); const status = body.status ?? lead.status;
+    const fields = leadFields.some(key => Object.hasOwn(body,key)) ? leadInput({ ...lead, ...body }) : Object.fromEntries(leadFields.map(key=>[key,lead[key]])); const status = body.status ?? lead.status;
     if (!leadStatuses.includes(status)) invalid('Status inválido.');
     if (user.role !== 'ADMIN' && (body.owner_id !== undefined || (terminalStatuses.includes(lead.status) && status !== lead.status) || status === 'Encerrado')) fail('Transferência, encerramento e reabertura exigem ADMIN.',403);
     const owner = body.owner_id ?? lead.owner_id;

@@ -1,3 +1,4 @@
+import { mountReports } from './reports.js';
 import { mountLeads } from './leads.js';
 const byId = id => document.getElementById(id);
 let me;
@@ -17,6 +18,14 @@ async function showWorkspace(user) {
   byId('greeting').textContent = `Olá, ${user.name}.`;
   byId('profile').textContent = user.role === 'ADMIN' ? 'Você está no acesso administrativo.' : 'Você está no acesso de captador.';
   byId('admin-panel').hidden = user.role !== 'ADMIN';
+  function selectArea(reports) {
+    byId('reports-panel').hidden=!reports;byId('leads-panel').hidden=reports;
+    byId('admin-panel').hidden=reports || user.role!=='ADMIN';
+    for(const [id,active] of [['nav-reports',reports],['nav-leads',!reports]]) {byId(id).setAttribute('aria-pressed',String(active));byId(id).className=active?'':'secondary';}
+  }
+  byId('nav-reports').onclick=async()=>{selectArea(true);message();try{await mountReports(api,user,message);}catch(error){message(error.message);}};
+  byId('nav-leads').onclick=async()=>{selectArea(false);message();try{await mountLeads(api,user,message);}catch(error){message(error.message);}};
+  selectArea(false);
   await mountLeads(api, user, message);
   if (user.role === 'ADMIN') await loadUsers();
 }

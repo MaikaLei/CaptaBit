@@ -1,3 +1,4 @@
+import { reportRoutes } from './reports.js';
 import { leadRoutes } from './leads.js';
 import { hashPassword, verifyPassword, validPassword, dummyHash } from '../domain/password.js';
 const cookieName = 'captabit_session';
@@ -67,6 +68,8 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': cookie(request, '', 0) });
   }
   const user = await userOf(request, db);
+  const reportResponse = await reportRoutes(request, db, user, { json, fail });
+  if (reportResponse) return reportResponse;
   const leadResponse = await leadRoutes(request, db, user, { json, fail, bodyOf });
   if (leadResponse) return leadResponse;
   if (path === '/api/me' && request.method === 'GET') return json({ user: publicUser(user) });

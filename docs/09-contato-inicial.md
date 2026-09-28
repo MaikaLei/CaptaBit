@@ -6,7 +6,7 @@ Classificações independentes do andamento da captação: Não verificado (cinz
 
 Excluir remove o telefone da lista, busca e comparação de telefones duplicados, mantendo o histórico. Adicionar novamente o mesmo telefone restaura o registro como Não verificado. Permissões de carteira e controle de versão protegem atualização, exclusão e restauração.
 
-Dados do imóvel, andamento e histórico ficam recolhidos. Relatórios de acompanhamento e seleção de outros modelos de mensagem são próximos incrementos; ainda não estão implementados. O identificador initial prepara o ponto de seleção de modelos.
+Dados do imóvel, andamento e histórico ficam recolhidos. Relatórios de acompanhamento estão disponíveis conforme docs/10-relatorios.md. A seleção de outros modelos de mensagem segue como próximo incremento. O identificador initial prepara o ponto de seleção de modelos.
 
 Migração 0004 preserva os registros e converte resultados antigos equivalentes. Fazer backup e parar o servidor local antes de migrar o D1 local no Windows. Validação: testes de autenticação, isolamento, classificação, concorrência, exclusão, restauração, duplicidades e texto WhatsApp; conferência visual local sem enviar mensagens nem alterar contatos reais.
 
