@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()=>{
-  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
+  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
   try {
     const db=await mf.getD1Database('DB');
-    for(const file of ['0001_auth.sql','0002_captacoes.sql']) {
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql']) {
       const sql=await readFile(`migrations/${file}`,'utf8');
       // D1 exec accepts multi-statement SQL when each complete statement is on one line.
-      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA)/);
+      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP)/);
       for(const statement of statements) await db.prepare(statement.trim()).run();
     }
     const tokens={};
@@ -51,5 +51,37 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
     assert.equal((await req('a','leads','POST',{...input,phones:['inválido']})).status,400);
     assert.deepEqual(await db.prepare('SELECT COUNT(*) AS n FROM leads').first(),count);
     assert.equal((await req('a','leads?page=-1')).status,400);
+    const privateInput={...input,street:'Av. São João',city:'Porto Alegre',state:'RS',number:'0123',complement:'Apto 101',notes:'SEGREDO-NAO-EXIBIR',phones:['51999994444']};
+    const privateResult=await (await req('b','leads','POST',privateInput)).json();
+    const checkInput={...privateInput,street:'Avenida Sao Joao',number:'123',complement:'Apartamento 101'};
+    const check=await (await req('a','leads/duplicates','POST',checkInput)).json();
+    assert.ok(check.duplicates.items.some(item=>item.type==='Endereço correspondente'));
+    assert.ok(check.duplicates.items.some(item=>item.type==='Telefone já cadastrado'));
+    assert.doesNotMatch(JSON.stringify(check),/SEGREDO|51999994444|street|phone|owner_id/);
+    assert.ok(!JSON.stringify(check).includes(privateResult.lead.id));
+    const otherApartment=await (await req('a','leads/duplicates','POST',{...checkInput,complement:'Apto 102',phones:[]})).json();
+    assert.equal(otherApartment.duplicates.items.length,0);
+    const incomplete=await (await req('a','leads/duplicates','POST',{...checkInput,number:'',complement:'',phones:[]})).json();
+    assert.equal(incomplete.duplicates.incomplete,true);
+    assert.ok(incomplete.duplicates.items.length>0);
+    assert.equal((await req('a',`leads/${privateResult.lead.id}/whatsapp/fake`,'POST',{message:'Olá',version:1})).status,404);
+    const own=await (await req('b',`leads/${privateResult.lead.id}`)).json();
+    const recipient=own.contacts[0];
+    const eventsBefore=(await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events.length;
+    const wa=await (await req('b',`leads/${privateResult.lead.id}/whatsapp/${recipient.id}`,'POST',{message:'Olá & tudo bem?',version:recipient.version,acknowledge:true})).json();
+    assert.equal(new URL(wa.url).hostname,'wa.me');assert.equal(new URL(wa.url).searchParams.get('text'),'Olá & tudo bem?');
+    const after=(await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts[0];
+    assert.equal(after.status,'Não contatado');assert.equal(after.version,recipient.version);
+    assert.equal((await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events.length,eventsBefore+1);
+    await req('b',`leads/${privateResult.lead.id}`,'PATCH',{status:'Recusado',version:1});
+    const historical=await (await req('a','leads/duplicates','POST',checkInput)).json();
+    assert.ok(historical.duplicates.items.every(item=>item.historical));
+    const historyBeforeIndex=await db.prepare('SELECT COUNT(*) AS n FROM lead_events').first();
+    await db.prepare('UPDATE leads SET key_version=1 WHERE id=?').bind(id).run();
+    assert.deepEqual(await db.prepare('SELECT COUNT(*) AS n FROM lead_events').first(),historyBeforeIndex);
+    const changed=await req('admin',`leads/${privateResult.lead.id}`,'PATCH',{street:'Rua Diferente',version:2});
+    assert.equal(changed.status,200);
+    const noOldAddress=await (await req('a','leads/duplicates','POST',{...checkInput,phones:[]})).json();
+    assert.equal(noOldAddress.duplicates.items.length,0);
   } finally {await mf.dispose();}
 });

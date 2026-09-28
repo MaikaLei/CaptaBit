@@ -1,3 +1,4 @@
+import { renderAlerts,confirmAlerts,appendWhatsApp } from './engagement.js';
 const labels = { type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD' };
 const element = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent=value; if (className) node.className=className; return node; };
 const button = (label, action, className='secondary') => { const node=element('button',label,className); node.type='button'; node.addEventListener('click',action); return node; };
@@ -22,14 +23,14 @@ export async function mountLeads(api,user,message) {
   const create=element('form',undefined,'lead-form'); create.hidden=true;
   heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('select').focus(); },'primary'));
   root.append(element('p','Cadastre o essencial e complemente durante a pesquisa.'));
-  const warning=element('p','Nesta etapa, a verificação global de duplicidades ainda não está disponível.','note-inline'); root.append(warning);
+  const warning=element('p','Endereços e telefones são comparados entre as carteiras. Alertas não impedem o cadastro; revise-os antes de contatar.','note-inline'); root.append(warning);
   const basic=element('div',undefined,'form-grid'); create.append(basic);
   field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda']);
   for(const key of ['street','number','district','city']) field(basic,key);
   const more=element('details'); more.append(element('summary','Mais informações')); const extra=element('div',undefined,'form-grid'); more.append(extra); create.append(more);
   for(const key of ['complement','state','postal_code','source','source_url','notes']) field(extra,key);
   const phoneLabel=element('label','Possíveis telefones (opcional; um por linha)'); const phones=element('textarea'); phones.name='phones'; phones.rows=2; phones.maxLength=400; phoneLabel.append(phones); create.append(phoneLabel);
-  bindForm(create,'Salvar captação',async data=>{ data.phones=data.phones.split(/[;\n]/).map(x=>x.trim()).filter(Boolean); const result=await api('leads','POST',data); create.reset(); create.hidden=true; page=0; await load(); await openLead(result.lead.id); },message); root.append(create);
+  bindForm(create,'Salvar captação',async data=>{ data.phones=data.phones.split(/[;\n]/).map(x=>x.trim()).filter(Boolean); const check=await api('leads/duplicates','POST',data); if(!await confirmAlerts(check.duplicates)) return; const result=await api('leads','POST',data); create.reset(); create.hidden=true; page=0; await load(); await openLead(result.lead.id); },message); root.append(create);
   const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, nome ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); field(search,'status','',['',...options.leadStatuses]);
   bindForm(search,'Buscar',async data=>{ query=data.q; filter=data.status; page=0; await load(); },message); root.append(search);
   const list=element('div',undefined,'lead-list'); const pager=element('div',undefined,'pager'); const detail=element('section',undefined,'lead-detail'); root.append(list,pager,detail);
@@ -45,8 +46,9 @@ export async function mountLeads(api,user,message) {
     pager.append(element('span',`Página ${page+1}`),button('Próxima',()=>{ page++; load().catch(error=>message(error.message)); })); pager.lastChild.disabled=!result.hasMore;
   }
   async function openLead(id) {
-    const {lead,contacts}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
+    const {lead,contacts,duplicates,messageTemplate}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
     detail.append(button('Fechar detalhes',()=>detail.replaceChildren()));
+    const alertBox=element('aside',undefined,'note-inline'); renderAlerts(alertBox,duplicates); detail.append(alertBox);
     const edit=element('form',undefined,'lead-form'); const grid=element('div',undefined,'form-grid'); edit.append(grid);
     field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
     for(const key of ['street','number','complement','district','city','state','postal_code','source','source_url','notes']) field(grid,key,lead[key]);
@@ -58,7 +60,7 @@ export async function mountLeads(api,user,message) {
     for(const contact of contacts) {
       const card=element('details',undefined,'contact-card'); card.append(element('summary',`${contact.name || 'Contato'} · +${contact.phone} · ${contact.status}`));
       const form=element('form',undefined,'form-grid'); field(form,'name',contact.name); field(form,'phone','+'+contact.phone); field(form,'status',contact.status,options.contactStatuses); field(form,'notes',contact.notes);
-      bindForm(form,'Salvar contato',async data=>{ await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{...data,version:contact.version}); await openLead(id); },message); card.append(form); detail.append(card);
+      bindForm(form,'Salvar contato',async data=>{ await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{...data,version:contact.version}); await openLead(id); },message); card.append(form); appendWhatsApp(card,contact,lead,messageTemplate,api,message,async()=>{ history.replaceChildren(); cursor=undefined; await loadHistory(); }); detail.append(card);
     }
     const add=element('form',undefined,'form-grid'); add.append(element('h3','Adicionar telefone')); field(add,'name'); field(add,'phone');
     bindForm(add,'Adicionar contato',async data=>{ await api(`leads/${id}/contacts`,'POST',data); await load(); await openLead(id); },message); detail.append(add);

@@ -1,3 +1,6 @@
+import { addressKeys,keyFields } from '../domain/duplicates.js';
+import { duplicates } from './duplicates.js';
+import { whatsappUrl,whatsappMessage } from '../domain/whatsapp.js';
 import { leadStatuses, contactStatuses, propertyTypes, terminalStatuses, leadFields, leadInput, phone, text, invalid } from '../domain/leads.js';
 export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
   const url = new URL(request.url); const path = url.pathname; const method = request.method;
@@ -11,6 +14,14 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     return lead;
   };
   const conflict = () => fail('Este registro foi atualizado. Reabra a captação antes de salvar novamente.', 409);
+  if (path === '/api/leads/duplicates' && method === 'POST') {
+    const body=await bodyOf(request); const fields=leadInput(body);
+    if(!Array.isArray(body.phones ?? []) || (body.phones ?? []).length>10) invalid('Inclua no máximo dez telefones.');
+    const now=Date.now();
+    const limit=await db.prepare('INSERT INTO login_limits (key,attempts,reset_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=CASE WHEN reset_at<=? THEN 1 ELSE attempts+1 END,reset_at=CASE WHEN reset_at<=? THEN excluded.reset_at ELSE reset_at END RETURNING attempts').bind('duplicates:'+user.id,now+900000,now,now).first();
+    if(limit.attempts>60) fail('Limite de verificações atingido. Aguarde 15 minutos.',429);
+    return json({duplicates:await duplicates(db,fields,(body.phones ?? []).map(phone))});
+  }
   if (path === '/api/leads' && method === 'GET') {
     const q = text(url.searchParams.get('q') || '', 100); const status = url.searchParams.get('status') || '';
     if (status && !leadStatuses.includes(status)) invalid('Status inválido.');
@@ -27,18 +38,31 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     const phones = body.phones ?? [];
     if (!Array.isArray(phones) || phones.length > 10) invalid('Inclua no máximo dez telefones por cadastro.');
     const numbers = [...new Set(phones.map(phone))]; const id = crypto.randomUUID(); const now = Date.now();
+    const keys=addressKeys(fields);
     await db.batch([
-      db.prepare(`INSERT INTO leads (id,owner_id,${leadFields.join(',')},actor_id,created_at,updated_at) VALUES (${Array(leadFields.length + 5).fill('?').join(',')})`).bind(id,user.id,...leadFields.map(key => fields[key]),user.id,now,now),
+      db.prepare(`INSERT INTO leads (id,owner_id,${leadFields.join(',')},${keyFields.join(',')},key_version,actor_id,created_at,updated_at) VALUES (${Array(leadFields.length + keyFields.length + 6).fill('?').join(',')})`).bind(id,user.id,...leadFields.map(key => fields[key]),...keyFields.map(key=>keys[key]),1,user.id,now,now),
       ...numbers.map(number => db.prepare('INSERT INTO contacts (id,lead_id,phone,actor_id,created_at,updated_at) VALUES (?,?,?,?,?,?)').bind(crypto.randomUUID(),id,number,user.id,now,now))
     ]);
-    return json({ lead: await getLead(id) }, 201);
+    return json({ lead: await getLead(id), duplicates: await duplicates(db,fields,numbers,id) }, 201);
   }
-  const match = path.match(/^\/api\/leads\/([^/]+)(?:\/(contacts|history)(?:\/([^/]+))?)?$/);
+  const match = path.match(/^\/api\/leads\/([^/]+)(?:\/(contacts|history|whatsapp)(?:\/([^/]+))?)?$/);
   if (!match) return json({ error: 'Não encontrado.' },404);
   const [,id,resource,childId] = match; const lead = await getLead(id);
   if (!resource && method === 'GET') {
     const { results: contacts } = await db.prepare('SELECT * FROM contacts WHERE lead_id=? ORDER BY created_at,id LIMIT 200').bind(id).all();
-    return json({ lead, contacts });
+    return json({ lead, contacts, duplicates: await duplicates(db,lead,contacts.map(contact=>contact.phone),id), messageTemplate:whatsappMessage(lead,user) });
+  }
+  if (resource === 'whatsapp' && childId && method === 'POST') {
+    const body=await bodyOf(request); const message=text(body.message,2000);
+    if(!message) invalid('Preencha a mensagem.');
+    const contact=await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=?').bind(childId,id).first();
+    if(!contact) fail('Contato não encontrado.',404);
+    if(contact.version!==body.version) conflict();
+    const alerts=await duplicates(db,lead,[contact.phone],id);
+    if((alerts.items.length || alerts.incomplete || alerts.truncated) && body.acknowledge!==true) return json({reviewRequired:true,duplicates:alerts});
+    const event=await db.prepare(`INSERT INTO lead_events (lead_id,contact_id,actor_id,event,after_json,created_at) SELECT ?,?,?,'Abertura do WhatsApp solicitada','{}',? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND EXISTS(SELECT 1 FROM contacts WHERE id=? AND lead_id=? AND version=?) RETURNING id`).bind(id,childId,user.id,Date.now(),id,...scopeArgs,childId,id,body.version).first();
+    if(!event) conflict();
+    return json({url:whatsappUrl(contact.phone,message),duplicates:alerts});
   }
   if (resource === 'history' && !childId && method === 'GET') {
     const before = Number(url.searchParams.get('before') || Number.MAX_SAFE_INTEGER);
@@ -57,7 +81,8 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     if (user.role !== 'ADMIN' && (body.owner_id !== undefined || (terminalStatuses.includes(lead.status) && status !== lead.status) || status === 'Encerrado')) fail('Transferência, encerramento e reabertura exigem ADMIN.',403);
     const owner = body.owner_id ?? lead.owner_id;
     if (owner !== lead.owner_id && !await db.prepare('SELECT id FROM users WHERE id=? AND active=1').bind(owner).first()) invalid('Escolha um responsável ativo.');
-    const result = await db.prepare(`UPDATE leads SET ${leadFields.map(key => `${key}=?`).join(',')}, status=?,owner_id=?,actor_id=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND ${scope} RETURNING id`).bind(...leadFields.map(key => fields[key]),status,owner,user.id,Date.now(),id,body.version,...scopeArgs).first();
+    const keys=addressKeys(fields);
+    const result = await db.prepare(`UPDATE leads SET ${leadFields.map(key => `${key}=?`).join(',')}, ${keyFields.map(key=>`${key}=?`).join(',')},key_version=1,status=?,owner_id=?,actor_id=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND ${scope} RETURNING id`).bind(...leadFields.map(key => fields[key]),...keyFields.map(key=>keys[key]),status,owner,user.id,Date.now(),id,body.version,...scopeArgs).first();
     if (!result) conflict();
     return json({ ok: true });
   }

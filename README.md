@@ -8,7 +8,7 @@ Aplicação web responsiva para organizar captações imobiliárias com cadastro
 
 ## Estado inicial
 
-Primeira etapa funcional disponível localmente: login/logout, sessões, perfis ADMIN/CAPTADOR e cadastro/ativação de usuários pelo ADMIN. Cadastro de captações, contatos, busca e histórico disponíveis; consulte [Etapa 2](docs/07-captacoes.md). Duplicidades globais, WhatsApp e relatórios ainda serão implementados. A aplicação ainda não foi publicada. Git local inicializado em repositório próprio, branch main. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
+Primeira etapa funcional disponível localmente: login/logout, sessões, perfis ADMIN/CAPTADOR e cadastro/ativação de usuários pelo ADMIN. Cadastro de captações, contatos, busca e histórico disponíveis; consulte [Etapa 2](docs/07-captacoes.md). Alertas globais de duplicidade e WhatsApp manual disponíveis; consulte [Etapa 3](docs/08-duplicidades-whatsapp.md). Dashboard e relatórios ainda serão implementados. A aplicação ainda não foi publicada. Git local inicializado em repositório próprio, branch main. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
 
 ## Estrutura planejada
 
