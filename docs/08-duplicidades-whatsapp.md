@@ -31,3 +31,6 @@ O indexador é retomável e altera somente chaves auxiliares, sem trocar versão
 Testes no runtime Cloudflare cobrem equivalência de endereços, unidades diferentes, dados incompletos, telefone repetido, resposta mínima entre carteiras, registro histórico, reindexação após edição, URL codificada, autorização do WhatsApp e preservação de status. Nenhuma mensagem real foi enviada nos testes.
 
 Ainda pendentes: dashboard, relatórios/CSV, publicação Cloudflare e validação do custo de autenticação no plano Free.
+
+Modelo atualizado conforme texto fornecido pelo usuário: Criativa Imóveis, saudação Boa tarde, nome do captador, tipo, logradouro e finalidade. Para a conta genérica admin/administrador, o remetente padrão é Maikon, conforme exemplo fornecido. O texto pode ser revisado antes da abertura.
+
