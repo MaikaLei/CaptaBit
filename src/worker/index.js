@@ -1,3 +1,4 @@
+import { leadRoutes } from './leads.js';
 import { hashPassword, verifyPassword, validPassword, dummyHash } from '../domain/password.js';
 const cookieName = 'captabit_session';
 const lifetime = 8 * 60 * 60 * 1000;
@@ -66,6 +67,8 @@ async function route(request, env) {
     return json({ ok: true }, 200, { 'Set-Cookie': cookie(request, '', 0) });
   }
   const user = await userOf(request, db);
+  const leadResponse = await leadRoutes(request, db, user, { json, fail, bodyOf });
+  if (leadResponse) return leadResponse;
   if (path === '/api/me' && request.method === 'GET') return json({ user: publicUser(user) });
   if (path === '/api/users' || path.startsWith('/api/users/')) {
     if (user.role !== 'ADMIN') fail('Acesso não permitido.', 403);

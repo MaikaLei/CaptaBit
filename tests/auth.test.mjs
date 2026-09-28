@@ -5,7 +5,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { hashPassword } from '../src/domain/password.js';
 
 test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
-  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'] }));
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }, { type: 'ESModule', path: 'src/worker/leads.js' }, { type: 'ESModule', path: 'src/domain/leads.js' }], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'] }));
   try {
     const db = await mf.getD1Database('DB');
     const sql = await readFile('migrations/0001_auth.sql', 'utf8');

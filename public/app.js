@@ -1,3 +1,4 @@
+import { mountLeads } from './leads.js';
 const byId = id => document.getElementById(id);
 let me;
 function message(text = '') { byId('message').textContent = text; }
@@ -16,6 +17,7 @@ async function showWorkspace(user) {
   byId('greeting').textContent = `Olá, ${user.name}.`;
   byId('profile').textContent = user.role === 'ADMIN' ? 'Você está no acesso administrativo.' : 'Você está no acesso de captador.';
   byId('admin-panel').hidden = user.role !== 'ADMIN';
+  await mountLeads(api, user, message);
   if (user.role === 'ADMIN') await loadUsers();
 }
 async function loadUsers() {
