@@ -1,10 +1,11 @@
+import { contactOutcomes,outcomeFromStatus } from '../domain/contact-outcomes.js';
 import { addressKeys,keyFields } from '../domain/duplicates.js';
 import { duplicates } from './duplicates.js';
 import { whatsappUrl,whatsappMessage } from '../domain/whatsapp.js';
 import { leadStatuses, contactStatuses, propertyTypes, terminalStatuses, leadFields, leadInput, phone, text, invalid } from '../domain/leads.js';
 export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
   const url = new URL(request.url); const path = url.pathname; const method = request.method;
-  if (path === '/api/lead-options' && method === 'GET') return json({ leadStatuses, contactStatuses, propertyTypes });
+  if (path === '/api/lead-options' && method === 'GET') return json({ leadStatuses, contactStatuses, propertyTypes,contactOutcomes });
   if (!path.startsWith('/api/leads')) return null;
   const scope = user.role === 'ADMIN' ? '1=1' : 'owner_id = ?';
   const scopeArgs = user.role === 'ADMIN' ? [] : [user.id];
@@ -28,7 +29,7 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     const rawPage = Number(url.searchParams.get('page') || 0);
     if (!Number.isSafeInteger(rawPage) || rawPage < 0 || rawPage > 10000) invalid('Página inválida.');
     const term = `%${q.replace(/[\\%_]/g, x => '\\' + x)}%`;
-    const query = `SELECT l.*, u.name AS owner_name, (SELECT COUNT(*) FROM contacts c WHERE c.lead_id=l.id) AS contacts_count FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${scope} AND (?='' OR l.status=?) AND (?='' OR l.street LIKE ? ESCAPE '\\' OR l.city LIKE ? ESCAPE '\\' OR l.district LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM contacts c WHERE c.lead_id=l.id AND (c.phone LIKE ? ESCAPE '\\' OR c.name LIKE ? ESCAPE '\\'))) ORDER BY l.updated_at DESC,l.id LIMIT 21 OFFSET ?`;
+    const query = `SELECT l.*, u.name AS owner_name, (SELECT COUNT(*) FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL) AS contacts_count FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${scope} AND (?='' OR l.status=?) AND (?='' OR l.street LIKE ? ESCAPE '\\' OR l.city LIKE ? ESCAPE '\\' OR l.district LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL AND (c.phone LIKE ? ESCAPE '\\' OR c.name LIKE ? ESCAPE '\\'))) ORDER BY l.updated_at DESC,l.id LIMIT 21 OFFSET ?`;
     const { results } = await db.prepare(query).bind(...scopeArgs, status, status, q, term, term, term, term, term, rawPage * 20).all();
     return json({ leads: results.slice(0,20), hasMore: results.length > 20, page: rawPage });
   }
@@ -49,18 +50,19 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
   if (!match) return json({ error: 'Não encontrado.' },404);
   const [,id,resource,childId] = match; const lead = await getLead(id);
   if (!resource && method === 'GET') {
-    const { results: contacts } = await db.prepare('SELECT * FROM contacts WHERE lead_id=? ORDER BY created_at,id LIMIT 200').bind(id).all();
+    const { results: contacts } = await db.prepare('SELECT * FROM contacts WHERE lead_id=? AND deleted_at IS NULL ORDER BY created_at,id LIMIT 200').bind(id).all();
     return json({ lead, contacts, duplicates: await duplicates(db,lead,contacts.map(contact=>contact.phone),id), messageTemplate:whatsappMessage(lead,user) });
   }
   if (resource === 'whatsapp' && childId && method === 'POST') {
-    const body=await bodyOf(request); const message=text(body.message,2000);
-    if(!message) invalid('Preencha a mensagem.');
-    const contact=await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=?').bind(childId,id).first();
+    const body=await bodyOf(request); if(body.templateId && body.templateId!=='initial') invalid('Modelo de mensagem inválido.'); const message=whatsappMessage(lead,user);
+
+    const contact=await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL').bind(childId,id).first();
     if(!contact) fail('Contato não encontrado.',404);
     if(contact.version!==body.version) conflict();
+    if(['INCORRECT','NO_WHATSAPP'].includes(contact.outcome)) fail('Atualize a classificação do contato antes de abrir o WhatsApp.',409);
     const alerts=await duplicates(db,lead,[contact.phone],id);
-    if((alerts.items.length || alerts.incomplete || alerts.truncated) && body.acknowledge!==true) return json({reviewRequired:true,duplicates:alerts});
-    const event=await db.prepare(`INSERT INTO lead_events (lead_id,contact_id,actor_id,event,after_json,created_at) SELECT ?,?,?,'Abertura do WhatsApp solicitada','{}',? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND EXISTS(SELECT 1 FROM contacts WHERE id=? AND lead_id=? AND version=?) RETURNING id`).bind(id,childId,user.id,Date.now(),id,...scopeArgs,childId,id,body.version).first();
+    if((alerts.items.length || alerts.truncated) && body.acknowledge!==true) return json({reviewRequired:true,duplicates:alerts});
+    const event=await db.prepare(`INSERT INTO lead_events (lead_id,contact_id,actor_id,event,after_json,created_at) SELECT ?,?,?,'Abertura do WhatsApp solicitada','{}',? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND EXISTS(SELECT 1 FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL AND version=?) RETURNING id`).bind(id,childId,user.id,Date.now(),id,...scopeArgs,childId,id,body.version).first();
     if(!event) conflict();
     return json({url:whatsappUrl(contact.phone,message),duplicates:alerts});
   }
@@ -86,28 +88,48 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     if (!result) conflict();
     return json({ ok: true });
   }
+  if(resource==='contacts' && childId && method==='DELETE') {
+    const body=await bodyOf(request);
+    if(!Number.isSafeInteger(body.version)) invalid('Versão inválida.');
+    const current=await db.prepare('SELECT id FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL').bind(childId,id).first();
+    if(!current) fail('Contato não encontrado.',404);
+    const now=Date.now();
+    const result=await db.prepare(`UPDATE contacts SET deleted_at=?,actor_id=?,updated_at=?,version=version+1 WHERE id=? AND lead_id=? AND version=? AND deleted_at IS NULL AND EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) RETURNING id`).bind(now,user.id,now,childId,id,body.version,id,...scopeArgs).first();
+    if(!result) conflict();
+    return json({ok:true});
+  }
   if (resource === 'contacts' && !childId && method === 'POST') {
     const body = await bodyOf(request); const number = phone(body.phone); const name = text(body.name); const notes = text(body.notes,2000);
     const contactId = crypto.randomUUID(); const now = Date.now();
+    const archived=await db.prepare('SELECT id FROM contacts WHERE lead_id=? AND phone=? AND deleted_at IS NOT NULL').bind(id,number).first();
+    if(archived) {
+      const restored=await db.prepare(`UPDATE contacts SET deleted_at=NULL,name=?,notes=?,outcome='UNKNOWN',status='Não contatado',actor_id=?,updated_at=?,version=version+1 WHERE id=? AND deleted_at IS NOT NULL AND EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND (SELECT COUNT(*) FROM contacts WHERE lead_id=? AND deleted_at IS NULL)<200 RETURNING id`).bind(name,notes,user.id,now,archived.id,id,...scopeArgs,id).first();
+      if(!restored) conflict();
+      return json({id:restored.id},201);
+    }
     try {
-      const result = await db.prepare(`INSERT INTO contacts (id,lead_id,name,phone,notes,actor_id,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND (SELECT COUNT(*) FROM contacts WHERE lead_id=?)<200 RETURNING id`).bind(contactId,id,name,number,notes,user.id,now,now,id,...scopeArgs,id).first();
+      const result = await db.prepare(`INSERT INTO contacts (id,lead_id,name,phone,notes,actor_id,created_at,updated_at) SELECT ?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND (SELECT COUNT(*) FROM contacts WHERE lead_id=? AND deleted_at IS NULL)<200 RETURNING id`).bind(contactId,id,name,number,notes,user.id,now,now,id,...scopeArgs,id).first();
       if (!result) fail('Acesso alterado ou limite de 200 contatos atingido.',409);
     } catch (error) { if (String(error).includes('UNIQUE')) fail('Esse telefone já está nesta captação.',409); throw error; }
     return json({ id: contactId },201);
   }
   if (resource === 'contacts' && childId && method === 'PATCH') {
     const body = await bodyOf(request);
-    if (Object.keys(body).some(key => !['name','phone','notes','status','version'].includes(key))) invalid('Campo não permitido.');
+    if (Object.keys(body).some(key => !['name','phone','notes','status','version','outcome'].includes(key))) invalid('Campo não permitido.');
     if (!Number.isSafeInteger(body.version)) invalid('Versão inválida.');
-    const contact = await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=?').bind(childId,id).first();
+    const contact = await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL').bind(childId,id).first();
     if (!contact) fail('Contato não encontrado.',404);
     const status = body.status ?? contact.status;
+    const outcome=body.outcome ?? (body.status ? outcomeFromStatus(body.status) : undefined) ?? contact.outcome;
+    if(!contactOutcomes.some(item=>item.id===outcome)) invalid('Classificação inválida.');
     if (!contactStatuses.includes(status)) invalid('Status inválido.');
     try {
-      const result = await db.prepare(`UPDATE contacts SET name=?,phone=?,notes=?,status=?,actor_id=?,updated_at=?,version=version+1 WHERE id=? AND lead_id=? AND version=? AND EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) RETURNING id`).bind(text(body.name ?? contact.name),phone(body.phone ?? contact.phone),text(body.notes ?? contact.notes,2000),status,user.id,Date.now(),childId,id,body.version,id,...scopeArgs).first();
+      const result = await db.prepare(`UPDATE contacts SET name=?,phone=?,notes=?,status=?,outcome=?,actor_id=?,updated_at=?,version=version+1 WHERE id=? AND lead_id=? AND deleted_at IS NULL AND version=? AND EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) RETURNING id`).bind(text(body.name ?? contact.name),phone(body.phone ?? contact.phone),text(body.notes ?? contact.notes,2000),status,outcome,user.id,Date.now(),childId,id,body.version,id,...scopeArgs).first();
       if (!result) conflict();
     } catch (error) { if (String(error).includes('UNIQUE')) fail('Esse telefone já está nesta captação.',409); throw error; }
     return json({ ok: true });
   }
   return json({ error: 'Não encontrado.' },404);
 }
+
+

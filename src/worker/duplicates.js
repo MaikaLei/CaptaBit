@@ -11,7 +11,7 @@ export async function duplicates(db,lead,numbers=[],exclude='') {
     const phones=[...new Set(numbers)];
     for(let offset=0;offset<phones.length;offset+=90) {
     const chunk=phones.slice(offset,offset+90);
-    const found=await db.prepare(`SELECT DISTINCT l.id,l.status,l.created_at,u.name AS owner_name FROM contacts c JOIN leads l ON l.id=c.lead_id JOIN users u ON u.id=l.owner_id WHERE c.phone IN (${chunk.map(()=>'?').join(',')}) AND l.id<>? LIMIT 101`).bind(...chunk,exclude).all();
+    const found=await db.prepare(`SELECT DISTINCT l.id,l.status,l.created_at,u.name AS owner_name FROM contacts c JOIN leads l ON l.id=c.lead_id JOIN users u ON u.id=l.owner_id WHERE c.deleted_at IS NULL AND c.phone IN (${chunk.map(()=>'?').join(',')}) AND l.id<>? LIMIT 101`).bind(...chunk,exclude).all();
     truncated ||= found.results.length>100;
     for(const row of found.results.slice(0,100)) items.push(safe(row,'Telefone já cadastrado'));
     }
@@ -19,3 +19,4 @@ export async function duplicates(db,lead,numbers=[],exclude='') {
   const pending=await db.prepare('SELECT 1 AS pending FROM leads WHERE key_version=0 LIMIT 1').first();
   return {items:items.slice(0,30),truncated:truncated || items.length>30,incomplete:!keys.number_key || !keys.state_key || Boolean(pending)};
 }
+

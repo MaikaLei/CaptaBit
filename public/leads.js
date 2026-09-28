@@ -1,5 +1,5 @@
-import { renderAlerts,confirmAlerts,appendWhatsApp } from './engagement.js';
-const labels = { type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD' };
+import { renderAlerts,confirmAlerts,appendWhatsApp,confirmDeleteContact } from './engagement.js';
+const labels = { type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD',outcome:'Resultado do contato',deleted_at:'Exclusão' };
 const element = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent=value; if (className) node.className=className; return node; };
 const button = (label, action, className='secondary') => { const node=element('button',label,className); node.type='button'; node.addEventListener('click',action); return node; };
 function field(form,key,value='',choices) {
@@ -31,7 +31,7 @@ export async function mountLeads(api,user,message) {
   for(const key of ['complement','state','postal_code','source','source_url','notes']) field(extra,key);
   const phoneLabel=element('label','Possíveis telefones (opcional; um por linha)'); const phones=element('textarea'); phones.name='phones'; phones.rows=2; phones.maxLength=400; phoneLabel.append(phones); create.append(phoneLabel);
   bindForm(create,'Salvar captação',async data=>{ data.phones=data.phones.split(/[;\n]/).map(x=>x.trim()).filter(Boolean); const check=await api('leads/duplicates','POST',data); if(!await confirmAlerts(check.duplicates)) return; const result=await api('leads','POST',data); create.reset(); create.hidden=true; page=0; await load(); await openLead(result.lead.id); },message); root.append(create);
-  const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, nome ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); field(search,'status','',['',...options.leadStatuses]);
+  const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, nome ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); const filters=element('details'); filters.append(element('summary','Filtro de acompanhamento')); field(filters,'status','',['',...options.leadStatuses]); search.append(filters);
   bindForm(search,'Buscar',async data=>{ query=data.q; filter=data.status; page=0; await load(); },message); root.append(search);
   const list=element('div',undefined,'lead-list'); const pager=element('div',undefined,'pager'); const detail=element('section',undefined,'lead-detail'); root.append(list,pager,detail);
   async function load() {
@@ -40,45 +40,70 @@ export async function mountLeads(api,user,message) {
     for(const lead of result.leads) {
       const row=element('article',undefined,'lead-row'); const title=button(`${lead.type} · ${lead.street}${lead.number?', '+lead.number:''}`,()=>openLead(lead.id).catch(error=>message(error.message)),'lead-link');
       const info=element('div'); info.append(title,element('p',`${lead.district ? lead.district+' · ':''}${lead.city} · ${lead.purpose}${user.role==='ADMIN'?' · '+lead.owner_name:''}`));
-      const meta=element('div'); meta.append(element('span',lead.status,'badge'),element('small',`${lead.contacts_count} contato(s)`)); row.append(info,meta); list.append(row);
+      const meta=element('div'); meta.append(element('small',`${lead.contacts_count} contato(s)`)); row.append(info,meta); list.append(row);
     }
     pager.append(button('Anterior',()=>{ page--; load().catch(error=>message(error.message)); })); pager.firstChild.disabled=page===0;
     pager.append(element('span',`Página ${page+1}`),button('Próxima',()=>{ page++; load().catch(error=>message(error.message)); })); pager.lastChild.disabled=!result.hasMore;
   }
-  async function openLead(id) {
-    const {lead,contacts,duplicates,messageTemplate}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
+  async function openLead(id,scroll=true) {
+    const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
     detail.append(button('Fechar detalhes',()=>detail.replaceChildren()));
     const alertBox=element('aside',undefined,'note-inline'); renderAlerts(alertBox,duplicates); detail.append(alertBox);
+    const followup=element('details',undefined,'followup'); followup.append(element('summary','Dados do imóvel e acompanhamento'));
     const edit=element('form',undefined,'lead-form'); const grid=element('div',undefined,'form-grid'); edit.append(grid);
     field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
     for(const key of ['street','number','complement','district','city','state','postal_code','source','source_url','notes']) field(grid,key,lead[key]);
     field(grid,'status',lead.status,options.leadStatuses);
     if(user.role==='ADMIN') field(grid,'owner_id',lead.owner_id,owners.filter(owner=>owner.active||owner.id===lead.owner_id).map(owner=>({id:owner.id,name:owner.name})));
-    bindForm(edit,'Salvar alterações',async data=>{ await api(`leads/${id}`,'PATCH',{...data,version:lead.version}); await load(); await openLead(id); message('Captação atualizada.'); },message); detail.append(edit);
+    bindForm(edit,'Salvar alterações',async data=>{ await api(`leads/${id}`,'PATCH',{...data,version:lead.version}); await load(); await openLead(id); message('Captação atualizada.'); },message); followup.append(edit);
     detail.append(element('h3','Possíveis contatos'));
     if(!contacts.length) detail.append(element('p','Nenhum telefone cadastrado ainda.'));
+    detail.append(element('p','O botão abre a mensagem no WhatsApp. Revise e confirme o envio por lá.','contact-hint'));
     for(const contact of contacts) {
-      const card=element('details',undefined,'contact-card'); card.append(element('summary',`${contact.name || 'Contato'} · +${contact.phone} · ${contact.status}`));
-      const form=element('form',undefined,'form-grid'); field(form,'name',contact.name); field(form,'phone','+'+contact.phone); field(form,'status',contact.status,options.contactStatuses); field(form,'notes',contact.notes);
-      bindForm(form,'Salvar contato',async data=>{ await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{...data,version:contact.version}); await openLead(id); },message); card.append(form); appendWhatsApp(card,contact,lead,messageTemplate,api,message,async()=>{ history.replaceChildren(); cursor=undefined; await loadHistory(); }); detail.append(card);
+      const outcome=options.contactOutcomes.find(item=>item.id===contact.outcome) || options.contactOutcomes[0];
+      const card=element('article',undefined,`contact-card contact-${outcome.tone}`);
+      const header=element('div',undefined,'contact-heading');
+      header.append(element('h4',`${contact.name || 'Contato'} · +${contact.phone}`),element('span',outcome.name,`outcome-badge outcome-${outcome.tone}`));card.append(header);
+      const actions=element('div',undefined,'contact-actions');
+      appendWhatsApp(actions,contact,lead,api,message);
+      const classification=field(actions,'outcome',contact.outcome,options.contactOutcomes);
+      classification.setAttribute('aria-label',`Resultado do contato +${contact.phone}`);
+      classification.addEventListener('change',async()=>{
+        classification.disabled=true;message();
+        try {await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{outcome:classification.value,version:contact.version});await openLead(id,false);}
+        catch(error){message(error.message);classification.value=contact.outcome;classification.disabled=false;}
+      });
+      const remove=button('Excluir contato',async()=>{
+        if(!await confirmDeleteContact(contact.phone)) return;
+        remove.disabled=true;message();
+        try {await api(`leads/${id}/contacts/${contact.id}`,'DELETE',{version:contact.version});await load();await openLead(id,false);message('Contato excluído da lista.');}
+        catch(error){message(error.message);remove.disabled=false;}
+      },'danger');actions.append(remove);card.append(actions);
+      const editContact=element('details');editContact.append(element('summary','Editar nome, telefone e observações'));
+      const form=element('form',undefined,'form-grid');field(form,'name',contact.name);field(form,'phone','+'+contact.phone);field(form,'notes',contact.notes);
+      bindForm(form,'Salvar contato',async data=>{await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{...data,version:contact.version});await openLead(id,false);},message);
+      editContact.append(form);card.append(editContact);detail.append(card);
     }
     const add=element('form',undefined,'form-grid'); add.append(element('h3','Adicionar telefone')); field(add,'name'); field(add,'phone');
     bindForm(add,'Adicionar contato',async data=>{ await api(`leads/${id}/contacts`,'POST',data); await load(); await openLead(id); },message); detail.append(add);
-    detail.append(element('h3','Histórico')); const history=element('ol',undefined,'history'); const moreEvents=button('Carregar eventos anteriores',()=>loadHistory().catch(error=>message(error.message))); detail.append(history,moreEvents); let cursor;
+    detail.append(followup);
+    const historyPanel=element('details',undefined,'followup'); historyPanel.append(element('summary','Histórico e acompanhamento'));detail.append(historyPanel);
+ const history=element('ol',undefined,'history'); const moreEvents=button('Carregar eventos anteriores',()=>loadHistory().catch(error=>message(error.message))); historyPanel.append(history,moreEvents); let cursor;
     async function loadHistory() {
       const result=await api(`leads/${id}/history${cursor?'?before='+cursor:''}`);
       for(const event of result.events) {
         const row=element('li'); row.append(element('strong',event.event),element('small',`${event.actor_name} · ${new Date(event.created_at).toLocaleString('pt-BR')}`));
         for(const [key,value] of Object.entries(event.after)) {
           if(event.before && event.before[key]===value) continue;
-          const readable=v=> key==='owner_id' ? owners.find(owner=>owner.id===v)?.name || 'Responsável registrado' : v || '—';
+          const readable=v=> key==='owner_id' ? owners.find(owner=>owner.id===v)?.name || 'Responsável registrado' : key==='outcome' ? options.contactOutcomes.find(item=>item.id===v)?.name || v : key==='deleted_at' ? v ? new Date(v).toLocaleString('pt-BR') : '—' : v || '—';
           row.append(element('span',`${labels[key] || key}: ${event.before?readable(event.before[key])+' → ':''}${readable(value)}`));
         }
         history.append(row);
       }
       cursor=result.next; moreEvents.hidden=!cursor;
     }
-    await loadHistory(); detail.scrollIntoView({behavior:'smooth',block:'start'});
+    await loadHistory(); if(scroll) detail.scrollIntoView({behavior:'smooth',block:'start'});
   }
   await load();
 }
+

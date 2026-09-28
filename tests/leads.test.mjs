@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()=>{
-  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
+  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
   try {
     const db=await mf.getD1Database('DB');
-    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql']) {
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql']) {
       const sql=await readFile(`migrations/${file}`,'utf8');
       // D1 exec accepts multi-statement SQL when each complete statement is on one line.
-      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP)/);
+      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE)/);
       for(const statement of statements) await db.prepare(statement.trim()).run();
     }
     const tokens={};
@@ -69,7 +69,7 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
     const recipient=own.contacts[0];
     const eventsBefore=(await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events.length;
     const wa=await (await req('b',`leads/${privateResult.lead.id}/whatsapp/${recipient.id}`,'POST',{message:'Olá & tudo bem?',version:recipient.version,acknowledge:true})).json();
-    assert.equal(new URL(wa.url).hostname,'wa.me');assert.equal(new URL(wa.url).searchParams.get('text'),'Olá & tudo bem?');
+    assert.equal(new URL(wa.url).hostname,'wa.me');assert.match(new URL(wa.url).searchParams.get('text'),/Sou b, corretor de locações da Criativa Imóveis/);
     const after=(await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts[0];
     assert.equal(after.status,'Não contatado');assert.equal(after.version,recipient.version);
     assert.equal((await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events.length,eventsBefore+1);
@@ -83,5 +83,28 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
     assert.equal(changed.status,200);
     const noOldAddress=await (await req('a','leads/duplicates','POST',{...checkInput,phones:[]})).json();
     assert.equal(noOldAddress.duplicates.items.length,0);
+    const route=`leads/${privateResult.lead.id}/contacts/${recipient.id}`;
+    assert.equal((await req('a',route,'DELETE',{version:1})).status,404);
+    assert.equal((await req('b',route,'PATCH',{outcome:'INVALID',version:1})).status,400);
+    let version=1;
+    for(const outcome of ['CORRECT','INCORRECT','NO_RESPONSE','NO_WHATSAPP']) {
+      assert.equal((await req('b',route,'PATCH',{outcome,version})).status,200);version++;
+      const detail=await (await req('b',`leads/${privateResult.lead.id}`)).json();
+      assert.equal(detail.contacts[0].outcome,outcome);
+      assert.equal(detail.lead.status,'Recusado');
+      if(['INCORRECT','NO_WHATSAPP'].includes(outcome)) assert.equal((await req('b',`leads/${privateResult.lead.id}/whatsapp/${recipient.id}`,'POST',{version})).status,409);
+    }
+    assert.equal((await req('b',route,'DELETE',{version:1})).status,409);
+    assert.equal((await req('b',route,'DELETE',{version})).status,200);
+    assert.equal((await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts.length,0);
+    assert.equal((await (await req('b','leads?q=51999994444')).json()).leads.length,0);
+    assert.equal((await (await req('a','leads/duplicates','POST',checkInput)).json()).duplicates.items.length,0);
+    assert.equal((await req('b',route,'PATCH',{outcome:'CORRECT',version:version+1})).status,404);
+    assert.equal((await req('b',`leads/${privateResult.lead.id}/whatsapp/${recipient.id}`,'POST',{version:version+1})).status,404);
+    assert.ok((await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events.some(e=>e.event==='Contato excluído'));
+    const restored=await req('b',`leads/${privateResult.lead.id}/contacts`,'POST',{phone:recipient.phone});
+    assert.equal(restored.status,201);assert.equal((await restored.json()).id,recipient.id);
+    const restoredContact=(await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts[0];
+    assert.equal(restoredContact.outcome,'UNKNOWN');assert.equal(restoredContact.version,version+2);
   } finally {await mf.dispose();}
 });
