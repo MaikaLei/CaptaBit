@@ -29,7 +29,7 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     const rawPage = Number(url.searchParams.get('page') || 0);
     if (!Number.isSafeInteger(rawPage) || rawPage < 0 || rawPage > 10000) invalid('Página inválida.');
     const term = `%${q.replace(/[\\%_]/g, x => '\\' + x)}%`;
-    const query = `SELECT l.*, u.name AS owner_name, (SELECT COUNT(*) FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL) AS contacts_count FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${scope} AND (?='' OR l.status=?) AND (?='' OR l.street LIKE ? ESCAPE '\\' OR l.city LIKE ? ESCAPE '\\' OR l.district LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL AND (c.phone LIKE ? ESCAPE '\\' OR c.name LIKE ? ESCAPE '\\'))) ORDER BY l.updated_at DESC,l.id LIMIT 21 OFFSET ?`;
+    const query = `SELECT l.*, u.name AS owner_name, (SELECT COUNT(*) FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL) AS contacts_count FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${scope} AND (?='' OR l.status=?) AND (?='' OR l.street LIKE ? ESCAPE '\\' OR l.city LIKE ? ESCAPE '\\' OR l.district LIKE ? ESCAPE '\\' OR l.proprietor_name LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM contacts c WHERE c.lead_id=l.id AND c.deleted_at IS NULL AND c.phone LIKE ? ESCAPE '\\')) ORDER BY l.updated_at DESC,l.id LIMIT 21 OFFSET ?`;
     const { results } = await db.prepare(query).bind(...scopeArgs, status, status, q, term, term, term, term, term, rawPage * 20).all();
     return json({ leads: results.slice(0,20), hasMore: results.length > 20, page: rawPage });
   }

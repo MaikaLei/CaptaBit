@@ -2,7 +2,7 @@ export const leadStatuses = ['Nova','Em pesquisa','Em contato','Proprietário lo
 export const contactStatuses = ['Não contatado','Mensagem enviada','Aguardando resposta','Contato incorreto','Proprietário/Responsável localizado','Sem resposta','Não possui WhatsApp'];
 export const propertyTypes = ['Casa','Apartamento','Terreno','Comercial','Outro'];
 export const terminalStatuses = ['Captado','Recusado','Já alugado','Encerrado'];
-export const leadFields = ['type','purpose','street','number','complement','district','city','state','postal_code','source','source_url','notes'];
+export const leadFields = ['proprietor_name','type','purpose','street','number','complement','district','city','state','postal_code','source','source_url','notes'];
 export const invalid = message => { throw Object.assign(new Error(message), { status: 400 }); };
 export function text(value, max = 200) {
   if (value === undefined) return '';
@@ -20,6 +20,7 @@ export function phone(value) {
 }
 export function leadInput(body) {
   const result = Object.fromEntries(leadFields.map(key => [key, text(body[key], key === 'notes' ? 2000 : key === 'source_url' ? 1000 : 200)]));
+  if (!result.proprietor_name) invalid('Preencha o nome do proprietário.');
   if (!propertyTypes.includes(result.type) || !['Venda','Locação'].includes(result.purpose) || !result.street || !result.city) invalid('Preencha tipo, finalidade, logradouro e cidade.');
   if (result.state && !/^[A-Za-z]{2}$/.test(result.state)) invalid('Informe a UF com duas letras.');
   result.state = result.state.toUpperCase();

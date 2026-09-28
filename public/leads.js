@@ -1,5 +1,5 @@
 import { renderAlerts,confirmAlerts,appendWhatsApp,confirmDeleteContact } from './engagement.js';
-const labels = { type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD',outcome:'Resultado do contato',deleted_at:'Exclusão' };
+const labels = { proprietor_name:'Proprietário',type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD',outcome:'Resultado do contato',deleted_at:'Exclusão' };
 const element = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent=value; if (className) node.className=className; return node; };
 const button = (label, action, className='secondary') => { const node=element('button',label,className); node.type='button'; node.addEventListener('click',action); return node; };
 function field(form,key,value='',choices) {
@@ -7,7 +7,7 @@ function field(form,key,value='',choices) {
   if (choices) { input=element('select'); for (const item of choices) { const option=element('option', typeof item==='string' ? item : item.name); option.value=typeof item==='string' ? item : item.id; input.append(option); } }
   else input=element(key==='notes' ? 'textarea' : 'input');
   input.name=key; input.value=value ?? ''; input.maxLength=key==='notes'?2000:key==='source_url'?1000:200;
-  if (['type','purpose','street','city'].includes(key)) input.required=true;
+  if (['proprietor_name','type','purpose','street','city'].includes(key)) input.required=true;
   if (key==='phone') { input.type='tel'; input.required=true; input.maxLength=40; }
   label.append(input); form.append(label); return input;
 }
@@ -21,17 +21,17 @@ export async function mountLeads(api,user,message) {
   if (user.role==='ADMIN') owners=(await api('users')).users;
   const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='ADMIN'?'Captações da equipe':'Minhas captações')); root.append(heading);
   const create=element('form',undefined,'lead-form'); create.hidden=true;
-  heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('select').focus(); },'primary'));
+  heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));
   root.append(element('p','Cadastre o essencial e complemente durante a pesquisa.'));
   const warning=element('p','Endereços e telefones são comparados entre as carteiras. Alertas não impedem o cadastro; revise-os antes de contatar.','note-inline'); root.append(warning);
   const basic=element('div',undefined,'form-grid'); create.append(basic);
-  field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda']);
+  field(basic,'proprietor_name'); field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda']);
   for(const key of ['street','number','district','city']) field(basic,key);
   const more=element('details'); more.append(element('summary','Mais informações')); const extra=element('div',undefined,'form-grid'); more.append(extra); create.append(more);
   for(const key of ['complement','state','postal_code','source','source_url','notes']) field(extra,key);
   const phoneLabel=element('label','Possíveis telefones (opcional; um por linha)'); const phones=element('textarea'); phones.name='phones'; phones.rows=2; phones.maxLength=400; phoneLabel.append(phones); create.append(phoneLabel);
   bindForm(create,'Salvar captação',async data=>{ data.phones=data.phones.split(/[;\n]/).map(x=>x.trim()).filter(Boolean); const check=await api('leads/duplicates','POST',data); if(!await confirmAlerts(check.duplicates)) return; const result=await api('leads','POST',data); create.reset(); create.hidden=true; page=0; await load(); await openLead(result.lead.id); },message); root.append(create);
-  const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, nome ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); const filters=element('details'); filters.append(element('summary','Filtro de acompanhamento')); field(filters,'status','',['',...options.leadStatuses]); search.append(filters);
+  const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, proprietário ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); const filters=element('details'); filters.append(element('summary','Filtro de acompanhamento')); field(filters,'status','',['',...options.leadStatuses]); search.append(filters);
   bindForm(search,'Buscar',async data=>{ query=data.q; filter=data.status; page=0; await load(); },message); root.append(search);
   const list=element('div',undefined,'lead-list'); const pager=element('div',undefined,'pager'); const detail=element('section',undefined,'lead-detail'); root.append(list,pager,detail);
   async function load() {
@@ -47,11 +47,12 @@ export async function mountLeads(api,user,message) {
   }
   async function openLead(id,scroll=true) {
     const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
+    detail.append(element('p',`Proprietário: ${lead.proprietor_name || 'Preencher no cadastro'}`));
     detail.append(button('Fechar detalhes',()=>detail.replaceChildren()));
     const alertBox=element('aside',undefined,'note-inline'); renderAlerts(alertBox,duplicates); detail.append(alertBox);
     const followup=element('details',undefined,'followup'); followup.append(element('summary','Dados do imóvel e acompanhamento'));
     const edit=element('form',undefined,'lead-form'); const grid=element('div',undefined,'form-grid'); edit.append(grid);
-    field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
+    field(grid,'proprietor_name',lead.proprietor_name); field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
     for(const key of ['street','number','complement','district','city','state','postal_code','source','source_url','notes']) field(grid,key,lead[key]);
     field(grid,'status',lead.status,options.leadStatuses);
     if(user.role==='ADMIN') field(grid,'owner_id',lead.owner_id,owners.filter(owner=>owner.active||owner.id===lead.owner_id).map(owner=>({id:owner.id,name:owner.name})));
@@ -63,7 +64,7 @@ export async function mountLeads(api,user,message) {
       const outcome=options.contactOutcomes.find(item=>item.id===contact.outcome) || options.contactOutcomes[0];
       const card=element('article',undefined,`contact-card contact-${outcome.tone}`);
       const header=element('div',undefined,'contact-heading');
-      header.append(element('h4',`${contact.name || 'Contato'} · +${contact.phone}`),element('span',outcome.name,`outcome-badge outcome-${outcome.tone}`));card.append(header);
+      header.append(element('h4',`Telefone · +${contact.phone}`),element('span',outcome.name,`outcome-badge outcome-${outcome.tone}`));card.append(header);
       const actions=element('div',undefined,'contact-actions');
       appendWhatsApp(actions,contact,lead,api,message);
       const classification=field(actions,'outcome',contact.outcome,options.contactOutcomes);
@@ -79,12 +80,12 @@ export async function mountLeads(api,user,message) {
         try {await api(`leads/${id}/contacts/${contact.id}`,'DELETE',{version:contact.version});await load();await openLead(id,false);message('Contato excluído da lista.');}
         catch(error){message(error.message);remove.disabled=false;}
       },'danger');actions.append(remove);card.append(actions);
-      const editContact=element('details');editContact.append(element('summary','Editar nome, telefone e observações'));
-      const form=element('form',undefined,'form-grid');field(form,'name',contact.name);field(form,'phone','+'+contact.phone);field(form,'notes',contact.notes);
+      const editContact=element('details');editContact.append(element('summary','Editar telefone e observações'));
+      const form=element('form',undefined,'form-grid');field(form,'phone','+'+contact.phone);field(form,'notes',contact.notes);
       bindForm(form,'Salvar contato',async data=>{await api(`leads/${id}/contacts/${contact.id}`,'PATCH',{...data,version:contact.version});await openLead(id,false);},message);
       editContact.append(form);card.append(editContact);detail.append(card);
     }
-    const add=element('form',undefined,'form-grid'); add.append(element('h3','Adicionar telefone')); field(add,'name'); field(add,'phone');
+    const add=element('form',undefined,'form-grid'); add.append(element('h3','Adicionar telefone')); field(add,'phone');
     bindForm(add,'Adicionar contato',async data=>{ await api(`leads/${id}/contacts`,'POST',data); await load(); await openLead(id); },message); detail.append(add);
     detail.append(followup);
     const historyPanel=element('details',undefined,'followup'); historyPanel.append(element('summary','Histórico e acompanhamento'));detail.append(historyPanel);

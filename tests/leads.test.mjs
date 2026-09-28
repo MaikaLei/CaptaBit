@@ -6,7 +6,7 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
   const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
   try {
     const db=await mf.getD1Database('DB');
-    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql']) {
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql']) {
       const sql=await readFile(`migrations/${file}`,'utf8');
       // D1 exec accepts multi-statement SQL when each complete statement is on one line.
       const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE)/);
@@ -20,7 +20,9 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
       await db.prepare('INSERT INTO sessions VALUES (?,?,?)').bind(hash,id,Date.now()+600000).run();
     }
     const req=(as,path,method='GET',body)=>mf.dispatchFetch(`https://test.local/api/${path}`,{method,headers:{Origin:'https://test.local','Content-Type':'application/json',Cookie:`captabit_session=${tokens[as]}`},...(body?{body:JSON.stringify(body)}:{})});
-    const input={type:'Casa',purpose:'Locação',street:'Rua de teste',city:'Teste',phones:['51999991111','51999992222']};
+    const input={proprietor_name:'Maria Proprietária',type:'Casa',purpose:'Locação',street:'Rua de teste',city:'Teste',phones:['51999991111','51999992222']};
+    assert.equal((await req('a','leads','POST',{...input,proprietor_name:''})).status,400);
+    assert.equal((await req('a','leads','POST',{...input,proprietor_name:'   '})).status,400);
     const response=await req('a','leads','POST',input); assert.equal(response.status,201,await response.clone().text());
     const {lead}=await response.json(); const id=lead.id;
     assert.equal(lead.owner_id,'a');
@@ -106,5 +108,14 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
     assert.equal(restored.status,201);assert.equal((await restored.json()).id,recipient.id);
     const restoredContact=(await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts[0];
     assert.equal(restoredContact.outcome,'UNKNOWN');assert.equal(restoredContact.version,version+2);
+    const another=await req('b','leads','POST',{...input,phones:[]});
+    assert.equal(another.status,201);
+    const anotherLead=(await another.json()).lead;
+    assert.equal((await req('b',`leads/${anotherLead.id}`,'PATCH',{proprietor_name:'Maria Atualizada',version:1})).status,200);
+    const found=await (await req('b','leads?q=Maria%20Atualizada')).json();assert.equal(found.leads.length,1);
+    assert.equal((await (await req('a','leads?q=Maria%20Atualizada')).json()).leads.length,0);
+    const ownerHistory=await (await req('b',`leads/${anotherLead.id}/history`)).json();
+    assert.equal(ownerHistory.events[0].after.proprietor_name,'Maria Atualizada');
+    assert.equal(ownerHistory.events[0].before.proprietor_name,'Maria Proprietária');
   } finally {await mf.dispose();}
 });

@@ -9,3 +9,9 @@ Excluir remove o telefone da lista, busca e comparação de telefones duplicados
 Dados do imóvel, andamento e histórico ficam recolhidos. Relatórios de acompanhamento e seleção de outros modelos de mensagem são próximos incrementos; ainda não estão implementados. O identificador initial prepara o ponto de seleção de modelos.
 
 Migração 0004 preserva os registros e converte resultados antigos equivalentes. Fazer backup e parar o servidor local antes de migrar o D1 local no Windows. Validação: testes de autenticação, isolamento, classificação, concorrência, exclusão, restauração, duplicidades e texto WhatsApp; conferência visual local sem enviar mensagens nem alterar contatos reais.
+
+## Proprietário do imóvel
+
+O campo proprietor_name (Proprietário) abre o cadastro e é obrigatório no cadastro e na edição dos dados do imóvel. É independente do captador responsável (owner_id). Não é exclusivo: vários imóveis podem ter o mesmo proprietário. Alterações entram no histórico, e a busca por proprietário respeita a carteira do usuário. O nome não é usado na mensagem WhatsApp.
+
+Os formulários de telefone não exibem mais Nome; os dados históricos de contatos são preservados. A migração 0005 mantém os imóveis antigos com proprietário vazio até preenchimento manual, sem inferir a identidade a partir de possíveis contatos. A classificação de telefone continua disponível sem exigir a edição do imóvel antigo.
