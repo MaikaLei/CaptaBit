@@ -63,6 +63,22 @@ test('Relatórios: filtros, totais, datas, CSV e isolamento',async()=>{
     await db.prepare("UPDATE leads SET proprietor_name='' WHERE id='a1'").run();
     assert.equal((await req('a','leads/a1','PATCH',{status:'Em pesquisa',version:1})).status,200);
     assert.equal((await req('a','leads/a1','PATCH',{proprietor_name:'',version:2})).status,400);
+    const dashboard=await (await req('a','dashboard?'+filter)).json();
+    assert.equal(dashboard.total,23);assert.equal(dashboard.with_correct,1);assert.equal(dashboard.without_phone,22);assert.equal(dashboard.captured,0);
+    assert.equal(dashboard.summary.CORRECT,2);assert.equal(dashboard.summary.contacts_count,6);assert.deepEqual(dashboard.team,[]);
+    assert.deepEqual(dashboard.trend,[{from:'2026-01-02',to:'2026-01-02',total:23}]);
+    const adminDashboard=await (await req('admin','dashboard?'+filter)).json();assert.equal(adminDashboard.total,24);assert.equal(adminDashboard.team.length,2);
+    assert.equal(adminDashboard.team.reduce((n,row)=>n+row.total,0),24);
+    assert.equal((await req('a','dashboard?'+filter+'&owner_id=b')).status,403);
+    const filteredDashboard=await (await req('admin','dashboard?'+filter+'&owner_id=b')).json();assert.equal(filteredDashboard.total,1);assert.equal(filteredDashboard.without_phone,1);
+    const daily=await (await req('a','dashboard?from=2026-01-01&to=2026-01-04')).json();assert.deepEqual(daily.trend.map(p=>p.total),[1,23,1,0]);
+    const weekly=await (await req('a','dashboard?from=2026-01-01&to=2026-02-02')).json();assert.equal(weekly.trend.length,5);assert.equal(weekly.trend.reduce((n,p)=>n+p.total,0),25);assert.equal(weekly.trend.at(-1).to,'2026-02-02');
+    const emptyDashboard=await (await req('a','dashboard?from=2026-02-01&to=2026-02-01')).json();assert.equal(emptyDashboard.total,0);assert.equal(emptyDashboard.summary.CORRECT,0);assert.equal(emptyDashboard.with_correct,0);assert.equal(emptyDashboard.trend[0].total,0);
+    for(const query of ['from=2026-01-01','from=&to=','from=2026-01-01&to=2028-01-01'])assert.equal((await req('a','dashboard?'+query)).status,400);
+    const defaultDashboard=await (await req('a','dashboard')).json();assert.equal(defaultDashboard.trend.length,30);
+    assert.equal((await req('a','leads/a22','PATCH',{status:'Captado',version:1})).status,200);
+    assert.equal((await (await req('a','dashboard?'+filter)).json()).captured,1);
+    assert.equal((await mf.dispatchFetch('https://test.local/api/dashboard')).status,401);
     const unauth=await mf.dispatchFetch('https://test.local/api/reports/captacoes.csv');assert.equal(unauth.status,401);
 
   } finally {await mf.dispose();}

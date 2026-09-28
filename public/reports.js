@@ -7,7 +7,7 @@ function field(form,name,label,choices) {
   wrapper.append(input);form.append(wrapper);return input;
 }
 function button(text,handler,className='secondary') {const b=el('button',text,className);b.type='button';b.addEventListener('click',handler);return b;}
-export async function mountReports(api,user,message) {
+export async function mountReports(api,user,message,initialFilters) {
   const root=document.getElementById('reports-panel');root.replaceChildren();
   const options=await api('lead-options');
   root.append(el('h2','Relatórios e acompanhamento'),el('p','Filtre as captações, acompanhe o andamento e exporte os resultados.'));
@@ -27,7 +27,8 @@ export async function mountReports(api,user,message) {
   const download=button('Exportar CSV',exportCsv);actions.append(total,download);
   const list=el('div');const pager=el('div',undefined,'pager');const detail=el('section',undefined,'lead-detail');
   root.append(summary,stages,actions,list,pager,detail);
-  let page=0;let applied=new URLSearchParams();let requestId=0;
+  let page=0;let applied=new URLSearchParams(initialFilters);let requestId=0;
+  for(const [name,value] of applied){const input=filters.elements.namedItem(name);if(input)input.value=value;}
   filters.addEventListener('submit',event=>{event.preventDefault();applied=new URLSearchParams(new FormData(filters));page=0;run();});
   async function run() {message();try{await load();}catch(error){message(error.message);}}
   async function load() {

@@ -17,9 +17,14 @@ export function csvCell(value) {
 const localDate = value => new Date(value - 3 * 3600000).toISOString().slice(0,19).replace('T',' ');
 export async function reportRoutes(request, db, user, { json, fail }) {
   const url = new URL(request.url);
-  if (!['/api/reports/captacoes','/api/reports/captacoes.csv'].includes(url.pathname)) return null;
+  const isDashboard=url.pathname==='/api/dashboard';
+  if (!['/api/dashboard','/api/reports/captacoes','/api/reports/captacoes.csv'].includes(url.pathname)) return null;
   if (request.method !== 'GET') return json({error:'Método não permitido.'},405);
   const p = url.searchParams;
+  if(isDashboard){
+    if(!p.has('from') && !p.has('to')){const now=Date.now();p.set('from',localDate(now-29*86400000).slice(0,10));p.set('to',localDate(now).slice(0,10));}
+    if(!p.get('from') || !p.get('to'))invalid('Informe a data inicial e final.');
+  }
   const where = []; const args = [];
   if (user.role !== 'ADMIN') { where.push('l.owner_id=?'); args.push(user.id); }
   const owner = text(p.get('owner_id') || '',200);
@@ -48,6 +53,25 @@ export async function reportRoutes(request, db, user, { json, fail }) {
   const clause = where.length ? where.join(' AND ') : '1=1';
   const outcomes = contactOutcomes.map(c => c.id);
   const counts = outcomes.map(id => `COALESCE(SUM(c.outcome='${id}'),0) AS ${id}`).join(',');
+  if (isDashboard) {
+    if (to-from > 366*86400000) invalid('Selecione um período de até 366 dias.');
+    const [total,summary,stages,daily,team] = await db.batch([
+      db.prepare(`SELECT COUNT(*) AS total,COALESCE(SUM(l.status='Captado'),0) AS captured,COALESCE(SUM(EXISTS(SELECT 1 FROM contacts x WHERE x.lead_id=l.id AND x.deleted_at IS NULL AND x.outcome='CORRECT')),0) AS with_correct,COALESCE(SUM(NOT EXISTS(SELECT 1 FROM contacts x WHERE x.lead_id=l.id AND x.deleted_at IS NULL)),0) AS without_phone FROM leads l WHERE ${clause}`).bind(...args),
+      db.prepare(`SELECT COUNT(c.id) AS contacts_count,${counts} FROM leads l LEFT JOIN contacts c ON c.lead_id=l.id AND c.deleted_at IS NULL WHERE ${clause}`).bind(...args),
+      db.prepare(`SELECT l.status,COUNT(*) AS total FROM leads l WHERE ${clause} GROUP BY l.status`).bind(...args),
+      db.prepare(`SELECT date(l.created_at/1000,'unixepoch','-3 hours') AS day,COUNT(*) AS total FROM leads l WHERE ${clause} GROUP BY day ORDER BY day`).bind(...args),
+      db.prepare(`SELECT u.name AS captador,l.owner_id,COUNT(*) AS total FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${clause} AND ?=1 GROUP BY l.owner_id ORDER BY total DESC,u.name,l.owner_id`).bind(...args,Number(user.role==='ADMIN'))
+    ]);
+    const days=new Map(daily.results.map(row=>[row.day,row.total]));const trend=[];
+    const step=to-from>31*86400000?7:1;
+    for(let time=from;time<to;time+=step*86400000){
+      let count=0;const end=Math.min(time+step*86400000,to);
+      for(let day=time;day<end;day+=86400000)count+=days.get(localDate(day).slice(0,10))||0;
+      trend.push({from:localDate(time).slice(0,10),to:localDate(end-1).slice(0,10),total:count});
+    }
+    return json({period:{from:p.get('from'),to:p.get('to')},...total.results[0],summary:summary.results[0],stages:stages.results,trend,team:team.results});
+  }
+
   const rowsQuery = `SELECT l.id,l.proprietor_name,l.type,l.purpose,l.street,l.number,l.complement,l.district,l.city,l.state,l.status,l.version,l.created_at,l.updated_at,u.name AS captador,COUNT(c.id) AS contacts_count,${counts} FROM leads l JOIN users u ON u.id=l.owner_id LEFT JOIN contacts c ON c.lead_id=l.id AND c.deleted_at IS NULL WHERE ${clause} GROUP BY l.id ORDER BY l.created_at DESC,l.id`;
   if (url.pathname.endsWith('.csv')) {
     const {results} = await db.prepare(rowsQuery + ' LIMIT 10001').bind(...args).all();

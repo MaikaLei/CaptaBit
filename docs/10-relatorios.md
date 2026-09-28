@@ -22,4 +22,4 @@ ADMIN consulta toda a equipe. CAPTADOR tem escopo obrigatório pela sessão; ten
 
 Testes com duas carteiras, 26 imóveis, múltiplas classificações e um telefone excluído: paginação sem repetição, totais, filtros combinados, limites de dias, entradas inválidas, busca literal, histórico, conflitos de edição, acesso não autenticado, CSV além da primeira página e neutralização de fórmulas. Conferência visual local de filtros, resultados vazios, resumo e acompanhamento sem modificar os dados reais.
 
-Dashboard dedicado, modelos alternativos de WhatsApp e publicação Cloudflare seguem como próximos incrementos.
+Dashboard disponível conforme docs/11-dashboard.md. Modelos alternativos de WhatsApp e publicação Cloudflare seguem como próximos incrementos.
