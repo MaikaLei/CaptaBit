@@ -1,11 +1,11 @@
 import { contactOutcomes,outcomeFromStatus } from '../domain/contact-outcomes.js';
 import { addressKeys,keyFields } from '../domain/duplicates.js';
 import { duplicates } from './duplicates.js';
-import { whatsappUrl,whatsappMessage } from '../domain/whatsapp.js';
+import { whatsappUrl,whatsappMessage,whatsappTemplates } from '../domain/whatsapp.js';
 import { leadStatuses, contactStatuses, propertyTypes, terminalStatuses, leadFields, leadInput, phone, text, invalid } from '../domain/leads.js';
 export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
   const url = new URL(request.url); const path = url.pathname; const method = request.method;
-  if (path === '/api/lead-options' && method === 'GET') return json({ leadStatuses, contactStatuses, propertyTypes,contactOutcomes });
+  if (path === '/api/lead-options' && method === 'GET') return json({ leadStatuses, contactStatuses, propertyTypes,contactOutcomes,whatsappTemplates });
   if (!path.startsWith('/api/leads')) return null;
   const scope = user.role === 'ADMIN' ? '1=1' : 'owner_id = ?';
   const scopeArgs = user.role === 'ADMIN' ? [] : [user.id];
@@ -54,15 +54,17 @@ export async function leadRoutes(request, db, user, { json, fail, bodyOf }) {
     return json({ lead, contacts, duplicates: await duplicates(db,lead,contacts.map(contact=>contact.phone),id), messageTemplate:whatsappMessage(lead,user) });
   }
   if (resource === 'whatsapp' && childId && method === 'POST') {
-    const body=await bodyOf(request); if(body.templateId && body.templateId!=='initial') invalid('Modelo de mensagem inválido.'); const message=whatsappMessage(lead,user);
+    const body=await bodyOf(request); const templateId=body.templateId ?? 'initial'; const template=whatsappTemplates.find(item=>item.id===templateId);
+    if(!template) invalid('Modelo de mensagem inválido.'); const message=whatsappMessage(lead,user,templateId);
 
     const contact=await db.prepare('SELECT * FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL').bind(childId,id).first();
     if(!contact) fail('Contato não encontrado.',404);
     if(contact.version!==body.version) conflict();
+    if(template.requiresCorrect && contact.outcome!=='CORRECT') invalid('Marque o telefone como contato correto para usar Captação certeira.');
     if(['INCORRECT','NO_WHATSAPP'].includes(contact.outcome)) fail('Atualize a classificação do contato antes de abrir o WhatsApp.',409);
     const alerts=await duplicates(db,lead,[contact.phone],id);
     if((alerts.items.length || alerts.truncated) && body.acknowledge!==true) return json({reviewRequired:true,duplicates:alerts});
-    const event=await db.prepare(`INSERT INTO lead_events (lead_id,contact_id,actor_id,event,after_json,created_at) SELECT ?,?,?,'Abertura do WhatsApp solicitada','{}',? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND EXISTS(SELECT 1 FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL AND version=?) RETURNING id`).bind(id,childId,user.id,Date.now(),id,...scopeArgs,childId,id,body.version).first();
+    const event=await db.prepare(`INSERT INTO lead_events (lead_id,contact_id,actor_id,event,after_json,created_at) SELECT ?,?,?,'Abertura do WhatsApp solicitada',?,? WHERE EXISTS(SELECT 1 FROM leads WHERE id=? AND ${scope}) AND EXISTS(SELECT 1 FROM contacts WHERE id=? AND lead_id=? AND deleted_at IS NULL AND version=?) RETURNING id`).bind(id,childId,user.id,JSON.stringify({message_model:template.name}),Date.now(),id,...scopeArgs,childId,id,body.version).first();
     if(!event) conflict();
     return json({url:whatsappUrl(contact.phone,message),duplicates:alerts});
   }

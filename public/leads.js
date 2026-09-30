@@ -1,5 +1,5 @@
 import { renderAlerts,confirmAlerts,appendWhatsApp,confirmDeleteContact } from './engagement.js';
-const labels = { proprietor_name:'Proprietário',type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD',outcome:'Resultado do contato',deleted_at:'Exclusão' };
+const labels = { message_model:'Modelo da mensagem',proprietor_name:'Proprietário',type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número (se conhecido)',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações',status:'Status',owner_id:'Responsável',name:'Nome',phone:'Telefone com DDD',outcome:'Resultado do contato',deleted_at:'Exclusão' };
 const element = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent=value; if (className) node.className=className; return node; };
 const button = (label, action, className='secondary') => { const node=element('button',label,className); node.type='button'; node.addEventListener('click',action); return node; };
 function field(form,key,value='',choices) {
@@ -66,7 +66,7 @@ export async function mountLeads(api,user,message) {
       const header=element('div',undefined,'contact-heading');
       header.append(element('h4',`Telefone · +${contact.phone}`),element('span',outcome.name,`outcome-badge outcome-${outcome.tone}`));card.append(header);
       const actions=element('div',undefined,'contact-actions');
-      appendWhatsApp(actions,contact,lead,api,message);
+      appendWhatsApp(actions,contact,lead,api,message,options.whatsappTemplates);
       const classification=field(actions,'outcome',contact.outcome,options.contactOutcomes);
       classification.setAttribute('aria-label',`Resultado do contato +${contact.phone}`);
       classification.addEventListener('change',async()=>{

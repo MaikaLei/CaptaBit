@@ -117,5 +117,19 @@ test('Carteiras isoladas, contatos, concorrência e histórico atômico',async()
     const ownerHistory=await (await req('b',`leads/${anotherLead.id}/history`)).json();
     assert.equal(ownerHistory.events[0].after.proprietor_name,'Maria Atualizada');
     assert.equal(ownerHistory.events[0].before.proprietor_name,'Maria Proprietária');
+    const waPath=`leads/${privateResult.lead.id}/whatsapp/${recipient.id}`;
+    const currentVersion=restoredContact.version;
+    assert.equal((await req('b',waPath,'POST',{version:currentVersion,templateId:'invalid'})).status,400);
+    assert.equal((await req('b',waPath,'POST',{version:currentVersion,templateId:'confirmed'})).status,400);
+    for(const templateId of ['initial','direct','friendly']) {
+      const response=await req('b',waPath,'POST',{version:currentVersion,templateId,acknowledge:true});
+      assert.equal(response.status,200);assert.equal(new URL((await response.json()).url).hostname,'wa.me');
+    }
+    assert.equal((await req('b',route,'PATCH',{version:currentVersion,outcome:'CORRECT'})).status,200);
+    assert.equal((await req('b',waPath,'POST',{version:currentVersion+1,templateId:'confirmed',acknowledge:true})).status,200);
+    const latest=(await (await req('b',`leads/${privateResult.lead.id}/history`)).json()).events[0];
+    assert.equal(latest.after.message_model,'Captação certeira');
+    const unchanged=(await (await req('b',`leads/${privateResult.lead.id}`)).json()).contacts[0];
+    assert.equal(unchanged.status,'Não contatado');assert.equal(unchanged.version,currentVersion+1);
   } finally {await mf.dispose();}
 });

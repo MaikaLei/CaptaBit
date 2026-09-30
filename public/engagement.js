@@ -20,20 +20,26 @@ export function confirmAlerts(alerts) {
     dialog.append(title,body,actions);document.body.append(dialog);dialog.addEventListener('cancel',event=>{event.preventDefault();finish(false);});dialog.showModal();
   });
 }
-export function appendWhatsApp(card,contact,lead,api,message) {
+export function appendWhatsApp(card,contact,lead,api,message,templates) {
+  const label=document.createElement('label');label.textContent='Modelo da mensagem';
+  const select=document.createElement('select');select.setAttribute('aria-label',`Modelo da mensagem para +${contact.phone}`);
+  for(const template of templates){const option=document.createElement('option');option.value=template.id;option.textContent=template.name;option.disabled=Boolean(template.requiresCorrect && contact.outcome!=='CORRECT');select.append(option);}
+  select.value='initial';label.append(select);
+  const hint=document.createElement('small');hint.textContent=templates.find(t=>t.id===select.value)?.description||'';label.append(hint);
+  select.addEventListener('change',()=>{hint.textContent=templates.find(t=>t.id===select.value)?.description||'';fallback.hidden=true;});
   const action=document.createElement('button');action.type='button';action.textContent='Enviar mensagem de captação';
   action.className='whatsapp-action';
   action.disabled=['INCORRECT','NO_WHATSAPP'].includes(contact.outcome);
   action.title=action.disabled ? 'Altere a classificação se este contato voltar a ser válido para WhatsApp.' : 'Abre o WhatsApp com o texto preenchido. Você revisa e confirma o envio lá.';
   const fallback=document.createElement('a');fallback.target='_blank';fallback.rel='noopener noreferrer';fallback.hidden=true;fallback.textContent='Abrir WhatsApp em nova guia';
   action.addEventListener('click',async()=>{
-    action.disabled=true;message();fallback.hidden=true;
+    action.disabled=true;select.disabled=true;message();fallback.hidden=true;
     // Reserve the tab during the click so popup blockers allow the later navigation.
     const whatsappTab=window.open('about:blank','_blank');
     if(whatsappTab) whatsappTab.opener=null;
     let opened=false;
     try {
-      const body={version:contact.version,templateId:'initial'};
+      const body={version:contact.version,templateId:select.value};
       let result=await api(`leads/${lead.id}/whatsapp/${contact.id}`,'POST',body);
       if(result.reviewRequired) {
         if(!await confirmAlerts(result.duplicates)) return;
@@ -41,9 +47,9 @@ export function appendWhatsApp(card,contact,lead,api,message) {
       }
       if(whatsappTab && !whatsappTab.closed) {whatsappTab.location.replace(result.url);opened=true;}
       else {fallback.href=result.url;fallback.hidden=false;message('Clique em Abrir WhatsApp em nova guia para continuar.');}
-    } catch(error) {message(error.message);} finally {if(!opened && whatsappTab && !whatsappTab.closed) whatsappTab.close();action.disabled=false;}
+    } catch(error) {message(error.message);} finally {if(!opened && whatsappTab && !whatsappTab.closed) whatsappTab.close();action.disabled=false;select.disabled=false;}
   });
-  card.append(action,fallback);
+  card.append(label,action,fallback);
 }
 export function confirmDeleteContact(phone) {
   return new Promise(resolve=>{

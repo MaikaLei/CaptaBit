@@ -25,4 +25,4 @@ Botões de classificação, andamento e responsável abrem Relatórios e acompan
 
 Testes cobrem contagem distinta de imóveis versus telefones, excluídos, imóveis sem telefone, isolamento ADMIN/CAPTADOR, limites dos dias em Brasília, dias sem cadastros, agrupamento semanal, padrão de 30 dias, intervalos inválidos e atualização do indicador Captado. Conferência visual local confirmou o preenchimento dos filtros ao navegar do dashboard para os relatórios; sem alterações nos registros reais.
 
-Próximas etapas: modelos alternativos de mensagem e preparação/publicação no Cloudflare.
+Modelos alternativos disponíveis conforme docs/12-modelos-mensagem.md. Próxima etapa: preparação/publicação no Cloudflare.

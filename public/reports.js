@@ -80,7 +80,7 @@ export async function mountReports(api,user,message,initialFilters) {
     for(const contact of contacts){const outcome=options.contactOutcomes.find(o=>o.id===contact.outcome);detail.append(el('p',`+${contact.phone} · ${outcome?.name||'Não verificado'}`,`outcome-badge outcome-${outcome?.tone||'neutral'}`));}
     const history=el('ol',undefined,'history');detail.append(el('h4','Histórico'),history);
     let cursor;const more=button('Carregar eventos anteriores',()=>historyPage().catch(e=>message(e.message)));detail.append(more);
-    const labels={status:'Andamento',proprietor_name:'Proprietário',owner_id:'Responsável',phone:'Telefone',name:'Nome',notes:'Observações',outcome:'Resultado',deleted_at:'Exclusão',type:'Tipo',purpose:'Finalidade',street:'Logradouro',number:'Número',complement:'Complemento',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link'};
+    const labels={message_model:'Modelo da mensagem',status:'Andamento',proprietor_name:'Proprietário',owner_id:'Responsável',phone:'Telefone',name:'Nome',notes:'Observações',outcome:'Resultado',deleted_at:'Exclusão',type:'Tipo',purpose:'Finalidade',street:'Logradouro',number:'Número',complement:'Complemento',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link'};
     async function historyPage() {
       more.disabled=true;
       try{const data=await api(`leads/${id}/history${cursor?'?before='+cursor:''}`);
