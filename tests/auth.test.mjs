@@ -10,9 +10,10 @@ test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
     const db = await mf.getD1Database('DB');
     const sql = await readFile('migrations/0001_auth.sql', 'utf8');
     for (const statement of sql.split(';').map(x => x.trim()).filter(Boolean)) await db.prepare(statement).run();
+    await db.prepare(await readFile('migrations/0006_user_management.sql','utf8')).run();
     const password = 'Teste-local-123456!';
     const hash = await hashPassword(password);
-    for (const [id, role] of [['admin', 'ADMIN'], ['captador', 'CAPTADOR']]) await db.prepare('INSERT INTO users VALUES (?, ?, ?, ?, ?, 1, ?)').bind(id, id, `${id}@example.test`, hash, role, Date.now()).run();
+    for (const [id, role] of [['admin', 'ADMIN'], ['captador', 'CAPTADOR']]) await db.prepare('INSERT INTO users (id,name,email,password_hash,role,active,created_at) VALUES (?, ?, ?, ?, ?, 1, ?)').bind(id, id, `${id}@example.test`, hash, role, Date.now()).run();
     const request = (path, { method = 'GET', body, token, origin = 'https://captabit.test' } = {}) => mf.dispatchFetch(`https://captabit.test/api/${path}`, { method, headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Cookie: token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     assert.equal((await request('me')).status, 401);
     assert.equal((await request('login', { method: 'POST', body: { email: 'admin@example.test', password }, origin: 'https://evil.test' })).status, 403);
@@ -49,6 +50,34 @@ test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
     assert.equal((await request('login', { method: 'POST', body: { email: 'limit@example.test', password } })).status, 429);
     const audit = await db.prepare('SELECT COUNT(*) AS count FROM audit').first();
     assert.equal(audit.count, 2);
+    const adminLogin=await request('login',{method:'POST',body:{email:'admin@example.test',password}});
+    const managementToken=adminLogin.headers.get('set-cookie').split(';')[0];
+    await request('users/captador',{method:'PATCH',token:managementToken,body:{active:true}});
+    const beforeReset=await request('login',{method:'POST',body:{email:'captador@example.test',password}});
+    const beforeToken=beforeReset.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('users/admin/password',{method:'POST',token:beforeToken,body:{password}})).status,403);
+    assert.equal((await request('users/admin',{method:'DELETE',token:beforeToken})).status,403);
+    assert.equal((await request('users/captador/password',{method:'POST',token:managementToken,body:{password:'short'}})).status,400);
+    const newPassword='Nova-senha-testes-123!';
+    assert.equal((await request('users/captador/password',{method:'POST',token:managementToken,body:{password:newPassword}})).status,200);
+    assert.equal((await request('me',{token:beforeToken})).status,401);
+    assert.equal((await request('login',{method:'POST',body:{email:'captador@example.test',password}})).status,401);
+    const afterReset=await request('login',{method:'POST',body:{email:'captador@example.test',password:newPassword}});assert.equal(afterReset.status,200);
+    const afterToken=afterReset.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request('users/admin',{method:'DELETE',token:managementToken})).status,400);
+    assert.equal((await request('users/captador',{method:'DELETE',token:managementToken,origin:'https://evil.test'})).status,403);
+    assert.equal((await request('users/captador',{method:'DELETE',token:managementToken})).status,200);
+    assert.equal((await request('me',{token:afterToken})).status,401);
+    assert.equal((await request('login',{method:'POST',body:{email:'captador@example.test',password:newPassword}})).status,401);
+    assert.ok(!(await (await request('users',{token:managementToken})).json()).users.some(u=>u.id==='captador'));
+    assert.ok((await (await request('users?include_deleted=1',{token:managementToken})).json()).users.find(u=>u.id==='captador').deleted);
+    assert.equal((await request('users/captador',{method:'PATCH',token:managementToken,body:{active:true}})).status,404);
+    assert.equal((await request('users/captador/password',{method:'POST',token:managementToken,body:{password}})).status,404);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM audit WHERE event='USER_PASSWORD_RESET'").first()).n,1);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM audit WHERE event='USER_DELETED'").first()).n,1);
+    assert.equal((await request('users/admin/password',{method:'POST',token:managementToken,body:{password:newPassword}})).status,200);
+    assert.equal((await request('me',{token:managementToken})).status,401);
+
   } finally { await mf.dispose(); }
 });
 async function sha(value) { return Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))).toString('hex'); }

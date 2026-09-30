@@ -18,7 +18,7 @@ function bindForm(form,submitLabel,action,message) {
 export async function mountLeads(api,user,message) {
   const root=document.getElementById('leads-panel'); root.replaceChildren();
   const options=await api('lead-options'); let page=0; let query=''; let filter=''; let owners=[];
-  if (user.role==='ADMIN') owners=(await api('users')).users;
+  if (user.role==='ADMIN') owners=(await api('users?include_deleted=1')).users;
   const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='ADMIN'?'Captações da equipe':'Minhas captações')); root.append(heading);
   const create=element('form',undefined,'lead-form'); create.hidden=true;
   heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));

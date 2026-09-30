@@ -1,3 +1,4 @@
+import { userActionDialog } from './user-actions.js';
 import { mountDashboard } from './dashboard.js';
 import { mountReports } from './reports.js';
 import { mountLeads } from './leads.js';
@@ -38,11 +39,14 @@ async function loadUsers() {
   for (const user of users) {
     const row = document.createElement('li'); const label = document.createElement('span');
     label.textContent = `${user.name} · ${user.email} · ${user.role === 'ADMIN' ? 'Administrador' : 'Captador'} · ${user.active ? 'Ativo' : 'Inativo'}`;
-    row.append(label);
+    row.append(label);const actions=document.createElement('div');actions.className='user-actions';row.append(actions);
     if (user.id !== me.id) {
       const button = document.createElement('button'); button.className = 'secondary'; button.textContent = user.active ? 'Desativar' : 'Reativar';
-      button.addEventListener('click', async () => { button.disabled = true; message(); try { await api(`users/${user.id}`, 'PATCH', { active: !user.active }); await loadUsers(); } catch (error) { message(error.message); button.disabled = false; } }); row.append(button);
+      button.addEventListener('click', async () => { button.disabled = true; message(); try { await api(`users/${user.id}`, 'PATCH', { active: !user.active }); await loadUsers(); } catch (error) { message(error.message); button.disabled = false; } }); actions.append(button);
     }
+    const reset=document.createElement('button');reset.className='secondary';reset.textContent='Redefinir senha';
+    reset.addEventListener('click',()=>userActionDialog(user,'password',api,async result=>{if(result.reauthenticate)showLogin();message(result.reauthenticate?'Senha alterada. Entre com a nova senha.':'Senha redefinida. As sessões do usuário foram encerradas.');}));actions.append(reset);
+    if(user.id!==me.id){const remove=document.createElement('button');remove.className='danger';remove.textContent='Excluir usuário';remove.addEventListener('click',()=>userActionDialog(user,'delete',api,async()=>{await loadUsers();message('Usuário excluído. Captações e histórico preservados.');}));actions.append(remove);}
     list.append(row);
   }
 }

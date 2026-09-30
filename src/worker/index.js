@@ -7,7 +7,7 @@ const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(b
 const fail = (message, status) => { throw Object.assign(new Error(message), { status }); };
 const digest = async value => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))].map(x => x.toString(16).padStart(2, '0')).join('');
 const emailOf = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
-const publicUser = user => ({ id: user.id, name: user.name, email: user.email, role: user.role, active: Boolean(user.active) });
+const publicUser = user => ({ id: user.id, name: user.name, email: user.email, role: user.role, active: Boolean(user.active), deleted: Boolean(user.deleted_at) });
 function tokenFrom(request) {
   return (request.headers.get('Cookie') || '').split(';').map(x => x.trim()).find(x => x.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) || '';
 }
@@ -56,11 +56,12 @@ async function route(request, env) {
     const correct = await verifyPassword(body.password, user?.password_hash || dummyHash);
     if (!correct || !user?.active) fail('E-mail ou senha inválidos.', 401);
     const token = [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
-    await db.batch([
+    const sessionResults=await db.batch([
       db.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(Date.now()),
       db.prepare('DELETE FROM login_limits WHERE reset_at <= ?').bind(Date.now()),
-      db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').bind(await digest(token), user.id, Date.now() + lifetime)
+      db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=? AND active=1 AND deleted_at IS NULL').bind(await digest(token),Date.now()+lifetime,user.id,user.password_hash)
     ]);
+    if(!sessionResults[2].meta.changes) fail('E-mail ou senha inválidos.',401);
     return json({ user: publicUser(user) }, 200, { 'Set-Cookie': cookie(request, token, lifetime / 1000) });
   }
   if (path === '/api/logout' && request.method === 'POST') {
@@ -76,7 +77,7 @@ async function route(request, env) {
   if (path === '/api/users' || path.startsWith('/api/users/')) {
     if (user.role !== 'ADMIN') fail('Acesso não permitido.', 403);
     if (path === '/api/users' && request.method === 'GET') {
-      const { results } = await db.prepare('SELECT id, name, email, role, active FROM users ORDER BY created_at, id LIMIT 200').all();
+      const { results } = await db.prepare('SELECT id, name, email, role, active, deleted_at FROM users WHERE (?=1 OR deleted_at IS NULL) ORDER BY created_at, id LIMIT 200').bind(Number(url.searchParams.get('include_deleted')==='1')).all();
       return json({ users: results.map(publicUser) });
     }
     if (path === '/api/users' && request.method === 'POST') {
@@ -92,13 +93,33 @@ async function route(request, env) {
       } catch (error) { if (String(error).includes('UNIQUE')) fail('E-mail já cadastrado.', 409); throw error; }
       return json({ user: { id, name, email, role: body.role, active: true } }, 201);
     }
+    const passwordMatch=path.match(/^\/api\/users\/([^/]+)\/password$/);
+    const deleteMatch=path.match(/^\/api\/users\/([^/]+)$/);
+    if ((passwordMatch && request.method==='POST') || (deleteMatch && request.method==='DELETE')) {
+      const resetting=Boolean(passwordMatch);const id=(passwordMatch||deleteMatch)[1];
+      if(!resetting && id===user.id) fail('Não é possível excluir a própria conta.',400);
+      const target=await db.prepare('SELECT id FROM users WHERE id=? AND deleted_at IS NULL').bind(id).first();
+      if(!target) fail('Usuário não encontrado.',404);
+      let hash;
+      if(resetting){const body=await bodyOf(request);if(Object.keys(body).some(key=>key!=='password') || !validPassword(body.password))fail('A senha deve ter de 12 a 128 caracteres.',400);hash=await hashPassword(body.password);}
+      const now=Date.now();const actor="EXISTS(SELECT 1 FROM users actor WHERE actor.id=? AND actor.active=1 AND actor.deleted_at IS NULL AND actor.role='ADMIN')";
+      const update=resetting ? db.prepare(`UPDATE users SET password_hash=? WHERE id=? AND deleted_at IS NULL AND ${actor}`).bind(hash,id,user.id) : db.prepare(`UPDATE users SET active=0,deleted_at=? WHERE id=? AND deleted_at IS NULL AND ${actor}`).bind(now,id,user.id);
+      const event=resetting?'USER_PASSWORD_RESET':'USER_DELETED';
+      const results=await db.batch([
+        update,
+        db.prepare('INSERT INTO audit (id,actor_id,target_id,event,created_at) SELECT ?,?,?,?,? WHERE changes()=1').bind(crypto.randomUUID(),user.id,id,event,now),
+        db.prepare(`DELETE FROM sessions WHERE user_id=? AND ${actor}`).bind(id,user.id)
+      ]);
+      if(!results[0].meta.changes) fail('Usuário ou permissão alterados. Atualize a página.',409);
+      return json({ok:true,reauthenticate:id===user.id},200,id===user.id?{'Set-Cookie':cookie(request,'',0)}:{});
+    }
     if (request.method === 'PATCH' && /^\/api\/users\/[^/]+$/.test(path)) {
       const id = path.split('/').pop(); const body = await bodyOf(request);
       if (typeof body.active !== 'boolean' || Object.keys(body).some(key => key !== 'active')) fail('Alteração inválida.', 400);
       if (id === user.id) fail('Não é possível desativar a própria conta.', 400);
-      if (!await db.prepare('SELECT id FROM users WHERE id = ?').bind(id).first()) fail('Usuário não encontrado.', 404);
+      if (!await db.prepare('SELECT id FROM users WHERE id = ? AND deleted_at IS NULL').bind(id).first()) fail('Usuário não encontrado.', 404);
       await db.batch([
-        db.prepare('UPDATE users SET active = ? WHERE id = ?').bind(Number(body.active), id),
+        db.prepare('UPDATE users SET active = ? WHERE id = ? AND deleted_at IS NULL').bind(Number(body.active), id),
         db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(id),
         db.prepare('INSERT INTO audit VALUES (?, ?, ?, ?, ?)').bind(crypto.randomUUID(), user.id, id, body.active ? 'USER_ENABLED' : 'USER_DISABLED', Date.now())
       ]);

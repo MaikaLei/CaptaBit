@@ -7,7 +7,7 @@ test('Relatórios: filtros, totais, datas, CSV e isolamento',async()=>{
   const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
   try {
     const db=await mf.getD1Database('DB');
-    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql']) {
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql','0006_user_management.sql']) {
       const sql=await readFile(`migrations/${file}`,'utf8');
       // D1 exec accepts multi-statement SQL when each complete statement is on one line.
       const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE)/);
@@ -17,7 +17,7 @@ test('Relatórios: filtros, totais, datas, CSV e isolamento',async()=>{
     for(const [id,role] of [['a','CAPTADOR'],['b','CAPTADOR'],['admin','ADMIN']]) {
       tokens[id]=(id==='a'?'a':id==='b'?'b':'c').repeat(64);
       const hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(tokens[id]))).toString('hex');
-      await db.prepare('INSERT INTO users VALUES (?,?,?,?,?,1,?)').bind(id,id,`${id}@example.test`,'unused',role,Date.now()).run();
+      await db.prepare('INSERT INTO users (id,name,email,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)').bind(id,id,`${id}@example.test`,'unused',role,Date.now()).run();
       await db.prepare('INSERT INTO sessions VALUES (?,?,?)').bind(hash,id,Date.now()+600000).run();
     }
     const req=(as,path,method='GET',body)=>mf.dispatchFetch(`https://test.local/api/${path}`,{method,headers:{Origin:'https://test.local','Content-Type':'application/json',Cookie:`captabit_session=${tokens[as]}`},...(body?{body:JSON.stringify(body)}:{})});

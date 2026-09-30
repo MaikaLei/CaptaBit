@@ -17,7 +17,7 @@ export async function mountReports(api,user,message,initialFilters) {
   field(filters,'status','Andamento',[['','Todos'],...options.leadStatuses.map(s=>[s,s])]);
   field(filters,'outcome','Resultado do contato',[['','Todos'],...options.contactOutcomes.map(o=>[o.id,o.name])]);
   if(user.role==='ADMIN') {
-    const {users}=await api('users');field(filters,'owner_id','Captador responsável',[['','Toda a equipe'],...users.map(u=>[u.id,u.name+(u.active?'':' (inativo)')])]);
+    const {users}=await api('users?include_deleted=1');field(filters,'owner_id','Captador responsável',[['','Toda a equipe'],...users.map(u=>[u.id,u.name+(u.deleted?' (excluído)':u.active?'':' (inativo)')])]);
   }
   const apply=el('button','Aplicar filtros');apply.type='submit';filters.append(apply);
   const reset=button('Limpar filtros',()=>{filters.reset();page=0;applied=new URLSearchParams();run();});filters.append(reset);

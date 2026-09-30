@@ -13,7 +13,7 @@ export async function mountDashboard(api,user,message,showReport) {
   if(user.role==='ADMIN'){
     const label=el('label','Captador responsável');owner=el('select');owner.name='owner_id';
     const all=el('option','Toda a equipe');all.value='';owner.append(all);
-    const {users}=await api('users');for(const user of users){const option=el('option',user.name+(user.active?'':' (inativo)'));option.value=user.id;owner.append(option);}
+    const {users}=await api('users?include_deleted=1');for(const user of users){const option=el('option',user.name+(user.deleted?' (excluído)':user.active?'':' (inativo)'));option.value=user.id;owner.append(option);}
     label.append(owner);form.insertBefore(label,apply);
   }
   root.append(form,el('small','Indicadores dos imóveis cadastrados no período, no horário de Brasília. Andamentos e resultados mostram a situação atual.'));
