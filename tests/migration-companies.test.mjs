@@ -1,3 +1,4 @@
+import { unstable_splitSqlQuery } from 'wrangler';
 import { csvCell } from '../src/worker/reports.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ test('Migração mantém carteira antiga exclusivamente no Master',async()=>{
     await db.prepare("INSERT INTO contacts (id,lead_id,phone,actor_id,created_at,updated_at) VALUES ('old-phone','old-lead','5551999990000','old-cap',1,1)").run();
     await db.prepare("INSERT INTO sessions VALUES ('old-session','old-cap',9999999999999)").run();
     const before=await db.prepare('SELECT * FROM leads').first();const contacts=await db.prepare('SELECT * FROM contacts').all();const history=await db.prepare('SELECT * FROM lead_events ORDER BY id').all();
-    const migration=await readFile('migrations/0007_companies.sql','utf8');for(const statement of migration.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE|DELETE)/))await db.prepare(statement.trim()).run();
+    const migration=await readFile('migrations/0007_companies.sql','utf8');for(const statement of unstable_splitSqlQuery(migration))await db.prepare(statement.trim()).run();
     assert.deepEqual(await db.prepare('SELECT * FROM leads').first(),{...before,company_id:null});
     assert.deepEqual((await db.prepare('SELECT * FROM contacts').all()).results,contacts.results);assert.deepEqual((await db.prepare('SELECT * FROM lead_events ORDER BY id').all()).results,history.results);
     assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM companies').first()).n,0);

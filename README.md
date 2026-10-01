@@ -8,7 +8,7 @@ Aplicação web responsiva para organizar captações imobiliárias com cadastro
 
 ## Estado inicial
 
-Primeira etapa funcional disponível localmente: login/logout, sessões, perfis Master/Broker/Captador e cadastro/ativação de usuários pelo ADMIN. Cadastro de captações, contatos, busca e histórico disponíveis; consulte [Etapa 2](docs/07-captacoes.md). Alertas globais de duplicidade e WhatsApp manual disponíveis; consulte [Etapa 3](docs/08-duplicidades-whatsapp.md). Relatórios, acompanhamento, resumo por classificação e exportação CSV disponíveis; consulte [Relatórios](docs/10-relatorios.md). Dashboard com indicadores e evolução disponível na aba Visão geral; consulte [Dashboard](docs/11-dashboard.md). Modelos de abordagem selecionáveis disponíveis; consulte [Mensagens](docs/12-modelos-mensagem.md). Separação entre imobiliárias e painel Master implementados; consulte [Multiempresa](docs/15-multiempresa-implementado.md). A aplicação ainda não foi publicada. Código em repositório Git próprio; evolução da V1 na branch codex/autenticacao-v1. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Recursos Cloudflare ainda não foram criados.
+Primeira etapa funcional disponível localmente: login/logout, sessões, perfis Master/Broker/Captador e cadastro/ativação de captadores pelo Broker. Cadastro de captações, contatos, busca e histórico disponíveis; consulte [Etapa 2](docs/07-captacoes.md). Alertas globais de duplicidade e WhatsApp manual disponíveis; consulte [Etapa 3](docs/08-duplicidades-whatsapp.md). Relatórios, acompanhamento, resumo por classificação e exportação CSV disponíveis; consulte [Relatórios](docs/10-relatorios.md). Dashboard com indicadores e evolução disponível na aba Visão geral; consulte [Dashboard](docs/11-dashboard.md). Modelos de abordagem selecionáveis disponíveis; consulte [Mensagens](docs/12-modelos-mensagem.md). Separação entre imobiliárias e painel Master implementados; consulte [Multiempresa](docs/15-multiempresa-implementado.md). Aplicação publicada em [CaptaBit](https://captabit.maikonandreyleiria.workers.dev). Código em repositório Git próprio; evolução da V1 na branch codex/autenticacao-v1. Repositório GitHub: [MaikaLei/CaptaBit](https://github.com/MaikaLei/CaptaBit). Workers e D1 de produção configurados; consulte [Publicação](docs/16-cloudflare.md).
 
 ## Estrutura planejada
 
@@ -36,4 +36,4 @@ Decisões recuperadas da conversa “Melhore script captação imóveis” e da 
 
 ## Desenvolvimento
 
-Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Para instalar e executar a aplicação, siga [Execução local](docs/06-execucao-local.md). Deploy ainda não configurado.
+Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Para instalar e executar a aplicação, siga [Execução local](docs/06-execucao-local.md). A publicação é manual, com configuração separada do ambiente local. Consulte [Cloudflare](docs/16-cloudflare.md).

@@ -1,5 +1,5 @@
 import {hashPassword,validPassword} from '../domain/password.js';
-export async function companyRoutes(request,db,user,{json,fail,bodyOf}) {
+export async function companyRoutes(request,db,user,{json,fail,bodyOf,passwords}) {
  const path=new URL(request.url).pathname;
  if(!path.startsWith('/api/companies'))return null;
  if(user.role!=='MASTER')fail('Acesso exclusivo do Master.',403);
@@ -13,7 +13,7 @@ export async function companyRoutes(request,db,user,{json,fail,bodyOf}) {
   const name=typeof body.name==='string'?body.name.trim():'';const slug=typeof body.slug==='string'?body.slug.trim().toLowerCase():'';
   const broker=typeof body.broker_name==='string'?body.broker_name.trim():'';const email=typeof body.broker_email==='string'?body.broker_email.trim().toLowerCase():'';
   if(!name || name.length>100 || !/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug) || ['master','api','assets'].includes(slug) || !broker || broker.length>100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !validPassword(body.password))fail('Confira nome, código (3 a 50 letras/números/hífens), Broker, e-mail e senha de 12 a 128 caracteres.',400);
-  const id=crypto.randomUUID(),brokerId=crypto.randomUUID(),now=Date.now();const hash=await hashPassword(body.password);
+  const id=crypto.randomUUID(),brokerId=crypto.randomUUID(),now=Date.now();const hash=await hashPassword(body.password,passwords);
   try{await db.batch([
    db.prepare('INSERT INTO companies (id,slug,name,created_at) VALUES (?,?,?,?)').bind(id,slug,name,now),
    db.prepare("INSERT INTO users (id,name,email,password_hash,role,access_role,company_id,created_at) VALUES (?,?,?,?,'ADMIN','BROKER',?,?)").bind(brokerId,broker,email,hash,id,now),

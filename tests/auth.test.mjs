@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { hashPassword } from '../src/domain/password.js';
 
-test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
-  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }, { type: 'ESModule', path: 'src/worker/leads.js' }, { type: 'ESModule', path: 'src/domain/leads.js' }, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }, {type:'ESModule',path:'src/worker/companies.js'}], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'] }));
+for (const production of [false,true]) test(`Autenticação e permissões (${production?'produção com pepper':'local'})`, async () => {
+  const pepper = 'ab'.repeat(32);
+  const bindings = production ? {PASSWORD_PROFILE:'cloudflare-v1',AUTH_PEPPER:pepper} : {};
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }, { type: 'ESModule', path: 'src/worker/leads.js' }, { type: 'ESModule', path: 'src/domain/leads.js' }, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }, {type:'ESModule',path:'src/worker/companies.js'}], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], bindings, d1Databases: ['DB'] }));
   try {
     const db = await mf.getD1Database('DB');
     for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql','0006_user_management.sql','0007_companies.sql']){
@@ -13,7 +15,7 @@ test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
     }
     await db.prepare("INSERT INTO companies (id,slug,name,created_at) VALUES ('fixture','fixture','Criativa Imóveis',0)").run();
     const password = 'Teste-local-123456!';
-    const hash = await hashPassword(password);
+    const hash = await hashPassword(password,production?{pepper}:{});
     for (const [id, role] of [['admin', 'ADMIN'], ['captador', 'CAPTADOR']]) await db.prepare(`INSERT INTO users (id,name,email,password_hash,role,active,created_at,company_id,access_role) VALUES (?, ?, ?, ?, ?, 1, ?, 'fixture', ?)`).bind(id, id, `${id}@example.test`, hash, role, Date.now(),role==='ADMIN'?'BROKER':'CAPTADOR').run();
     const request = (path, { method = 'GET', body, token, origin = 'https://captabit.test' } = {}) => mf.dispatchFetch(`https://captabit.test/api/${path}`, { method, headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Cookie: token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(path==='login'?{...body,company:'fixture'}:body) } : {}) });
     assert.equal((await request('me')).status, 401);

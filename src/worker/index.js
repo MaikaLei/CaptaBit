@@ -1,7 +1,7 @@
 import { companyRoutes } from './companies.js';
 import { reportRoutes } from './reports.js';
 import { leadRoutes } from './leads.js';
-import { hashPassword, verifyPassword, validPassword, dummyHash } from '../domain/password.js';
+import { hashPassword, verifyPassword, validPassword, passwordOptions, dummyPasswordHash } from '../domain/password.js';
 const cookieName = 'captabit_session';
 const lifetime = 8 * 60 * 60 * 1000;
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
@@ -58,12 +58,13 @@ async function route(request, env) {
     return json(company);
   }
   if (path === '/api/login' && request.method === 'POST') {
+    const passwords = passwordOptions(env);
     const body = await bodyOf(request); const email = emailOf(body.email);
     if (!email || email.length > 254 || typeof body.password !== 'string' || body.password.length > 128) fail('E-mail ou senha inválidos.', 401);
     const slug=typeof body.company==='string'?body.company.trim().toLowerCase():'';
     await rateLimit(db, slug+':'+email, request.headers.get('CF-Connecting-IP') || 'local');
     const user = await db.prepare(`SELECT u.*,c.name AS company_name,c.slug AS company_slug FROM users u LEFT JOIN companies c ON c.id=u.company_id WHERE u.email=? AND u.deleted_at IS NULL AND ((?='' AND u.access_role='MASTER') OR (c.slug=? AND c.active=1 AND u.access_role IN ('BROKER','CAPTADOR')))`).bind(email,slug,slug).first();
-    const correct = await verifyPassword(body.password, user?.password_hash || dummyHash);
+    const correct = await verifyPassword(body.password, user?.password_hash || dummyPasswordHash(passwords), passwords);
     if (!correct || !user?.active) fail('E-mail ou senha inválidos.', 401);
     const token = [...crypto.getRandomValues(new Uint8Array(32))].map(x => x.toString(16).padStart(2, '0')).join('');
     const sessionResults=await db.batch([
@@ -80,7 +81,7 @@ async function route(request, env) {
   }
   const user = await userOf(request, db);
   if(request.headers.has('X-Account') && request.headers.get('X-Account')!==(user.company_slug||''))fail('Sua sessão mudou de conta. Entre novamente neste link.',401);
-  const companyResponse=await companyRoutes(request,db,user,{json,fail,bodyOf});
+  const companyResponse=await companyRoutes(request,db,user,{json,fail,bodyOf,passwords:passwordOptions(env)});
   if(companyResponse)return companyResponse;
   const reportResponse = await reportRoutes(request, db, user, { json, fail });
   if (reportResponse) return reportResponse;
@@ -97,7 +98,7 @@ async function route(request, env) {
       if(user.role!=='BROKER')fail('Cadastre o Broker pelo painel Imobiliárias. Captadores são cadastrados pelo Broker.',403);
       const body=await bodyOf(request);const email=emailOf(body.email);const name=typeof body.name==='string'?body.name.trim():'';
       if(Object.keys(body).some(k=>!['name','email','password','role'].includes(k)) || body.role!=='CAPTADOR' || !name || name.length>100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length>254 || !validPassword(body.password))fail('Confira nome, e-mail, perfil Captador e senha (12 a 128 caracteres).',400);
-      const id=crypto.randomUUID(),now=Date.now();const hash=await hashPassword(body.password);
+      const id=crypto.randomUUID(),now=Date.now();const hash=await hashPassword(body.password, passwordOptions(env));
       try{const result=await db.batch([
         db.prepare("INSERT INTO users (id,name,email,password_hash,role,access_role,company_id,created_at) SELECT ?,?,?,?,'CAPTADOR','CAPTADOR',?,? WHERE EXISTS(SELECT 1 FROM users a JOIN companies c ON c.id=a.company_id WHERE a.id=? AND a.active=1 AND a.deleted_at IS NULL AND a.access_role='BROKER' AND c.active=1)").bind(id,name,email,hash,user.company_id,now,user.id),
         db.prepare("INSERT INTO audit SELECT ?,?,?, 'USER_CREATED',? WHERE changes()=1").bind(crypto.randomUUID(),user.id,id,now)
@@ -115,7 +116,7 @@ async function route(request, env) {
       if(!resetting && target.access_role!=='CAPTADOR')fail('Use o bloqueio da imobiliária para suspender o Broker.',400);
       let hash,active;
       if(!removing){const body=await bodyOf(request);
-        if(resetting){if(Object.keys(body).some(k=>k!=='password') || !validPassword(body.password))fail('A senha deve ter de 12 a 128 caracteres.',400);hash=await hashPassword(body.password);}
+        if(resetting){if(Object.keys(body).some(k=>k!=='password') || !validPassword(body.password))fail('A senha deve ter de 12 a 128 caracteres.',400);hash=await hashPassword(body.password, passwordOptions(env));}
         else{if(Object.keys(body).some(k=>k!=='active') || typeof body.active!=='boolean')fail('Alteração inválida.',400);active=body.active;}
       }
       const actor="EXISTS(SELECT 1 FROM users a LEFT JOIN companies c ON c.id=a.company_id WHERE a.id=? AND a.active=1 AND a.deleted_at IS NULL AND (a.access_role='MASTER' OR (a.access_role='BROKER' AND c.active=1)))";
@@ -138,7 +139,7 @@ export default {
   async fetch(request, env) {
     let response;
     try { response = await route(request, env); }
-    catch (error) { response = json({ error: error.status ? error.message : 'Serviço temporariamente indisponível. Tente novamente.' }, error.status || 503); }
+    catch (error) { if (!error.status) console.error('Request failed', { name: error.name, message: error.message }); response = json({ error: error.status ? error.message : 'Serviço temporariamente indisponível. Tente novamente.' }, error.status || 503); }
     response = new Response(response.body, response);
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'no-referrer');
