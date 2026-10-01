@@ -3,14 +3,14 @@ const dayLabel=iso=>iso.split('-').reverse().join('/');
 const dateString=time=>new Date(time-3*3600000).toISOString().slice(0,10);
 export async function mountDashboard(api,user,message,showReport) {
   const root=document.getElementById('dashboard-panel');root.replaceChildren();
-  root.append(el('h2','Visão geral'),el('p',user.role==='ADMIN'?'Acompanhe as captações e os contatos da equipe.':'Acompanhe suas captações e os resultados dos contatos.'));
+  root.append(el('h2','Visão geral'),el('p',user.role!=='CAPTADOR'?'Acompanhe as captações e os contatos da equipe.':'Acompanhe suas captações e os resultados dos contatos.'));
   const form=el('form',undefined,'dashboard-filters');
   function field(name,title){const label=el('label',title);const input=el('input');input.type='date';input.name=name;input.required=true;label.append(input);form.append(label);return input;}
   const from=field('from','Cadastradas a partir de');const to=field('to','Cadastradas até');
   const today=Date.now();from.value=dateString(today-29*86400000);to.value=dateString(today);
   const apply=el('button','Atualizar visão');apply.type='submit';form.append(apply);
   let owner;
-  if(user.role==='ADMIN'){
+  if(user.role!=='CAPTADOR'){
     const label=el('label','Captador responsável');owner=el('select');owner.name='owner_id';
     const all=el('option','Toda a equipe');all.value='';owner.append(all);
     const {users}=await api('users?include_deleted=1');for(const user of users){const option=el('option',user.name+(user.deleted?' (excluído)':user.active?'':' (inativo)'));option.value=user.id;owner.append(option);}
@@ -49,7 +49,7 @@ export async function mountDashboard(api,user,message,showReport) {
       for(const point of data.trend){const row=el('tr');row.append(el('td',point.from===point.to?dayLabel(point.from):`${dayLabel(point.from)} a ${dayLabel(point.to)}`),el('td',String(point.total)));table.append(row);}details.append(table);content.append(details);
       content.append(el('h3','Andamento das captações'));const stages=el('div',undefined,'report-stages');
       for(const stage of data.stages){const b=el('button',`${stage.status}: ${stage.total}`,'secondary');b.type='button';b.addEventListener('click',()=>report({status:stage.status}));stages.append(b);}if(!data.stages.length)stages.append(el('p','Sem andamentos neste período.'));content.append(stages);
-      if(user.role==='ADMIN'){
+      if(user.role!=='CAPTADOR'){
         content.append(el('h3','Captações por responsável'));const team=el('div',undefined,'report-stages');for(const member of data.team){const b=el('button',`${member.captador}: ${member.total}`,'secondary');b.type='button';b.addEventListener('click',()=>report({owner_id:member.owner_id}));team.append(b);}if(!data.team.length)team.append(el('p','Sem cadastros neste período.'));content.append(team);
       }
     }catch(error){if(requestId===sequence){content.replaceChildren(el('p','Não foi possível carregar os indicadores. Confira os filtros e tente novamente.'));message(error.message);}}

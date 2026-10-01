@@ -19,3 +19,5 @@ test('Modelos usam dados do imóvel sem revelar o nome do proprietário',()=>{
   assert.throws(()=>whatsappMessage({}, {}, 'invalid'),/Modelo/);
   assert.doesNotMatch(whatsappMessage({street:'Rua A',purpose:'Venda'},{name:'Carlos'},'confirmed'),/Não sei|Você é o responsável/);
 });
+
+test('Nome de administrador de outra empresa não vira Maikon',()=>{const text=whatsappMessage({street:'Rua X',purpose:'Venda'},{name:'admin',company_name:'Imobiliária X'});assert.match(text,/Sou admin,/);assert.match(text,/Imobiliária X/);assert.doesNotMatch(text,/Maikon|Criativa/);});

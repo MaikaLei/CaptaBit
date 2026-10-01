@@ -5,16 +5,17 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { hashPassword } from '../src/domain/password.js';
 
 test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
-  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }, { type: 'ESModule', path: 'src/worker/leads.js' }, { type: 'ESModule', path: 'src/domain/leads.js' }, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'] }));
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: 'ESModule', path: 'src/worker/index.js' }, { type: 'ESModule', path: 'src/domain/password.js' }, { type: 'ESModule', path: 'src/worker/leads.js' }, { type: 'ESModule', path: 'src/domain/leads.js' }, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }, {type:'ESModule',path:'src/worker/companies.js'}], modulesRoot: 'src', compatibilityDate: '2026-09-25', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'] }));
   try {
     const db = await mf.getD1Database('DB');
-    const sql = await readFile('migrations/0001_auth.sql', 'utf8');
-    for (const statement of sql.split(';').map(x => x.trim()).filter(Boolean)) await db.prepare(statement).run();
-    await db.prepare(await readFile('migrations/0006_user_management.sql','utf8')).run();
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql','0006_user_management.sql','0007_companies.sql']){
+      const sql=await readFile('migrations/'+file,'utf8');for(const statement of sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE|DELETE)/))await db.prepare(statement.trim()).run();
+    }
+    await db.prepare("INSERT INTO companies (id,slug,name,created_at) VALUES ('fixture','fixture','Criativa Imóveis',0)").run();
     const password = 'Teste-local-123456!';
     const hash = await hashPassword(password);
-    for (const [id, role] of [['admin', 'ADMIN'], ['captador', 'CAPTADOR']]) await db.prepare('INSERT INTO users (id,name,email,password_hash,role,active,created_at) VALUES (?, ?, ?, ?, ?, 1, ?)').bind(id, id, `${id}@example.test`, hash, role, Date.now()).run();
-    const request = (path, { method = 'GET', body, token, origin = 'https://captabit.test' } = {}) => mf.dispatchFetch(`https://captabit.test/api/${path}`, { method, headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Cookie: token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+    for (const [id, role] of [['admin', 'ADMIN'], ['captador', 'CAPTADOR']]) await db.prepare(`INSERT INTO users (id,name,email,password_hash,role,active,created_at,company_id,access_role) VALUES (?, ?, ?, ?, ?, 1, ?, 'fixture', ?)`).bind(id, id, `${id}@example.test`, hash, role, Date.now(),role==='ADMIN'?'BROKER':'CAPTADOR').run();
+    const request = (path, { method = 'GET', body, token, origin = 'https://captabit.test' } = {}) => mf.dispatchFetch(`https://captabit.test/api/${path}`, { method, headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { Cookie: token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(path==='login'?{...body,company:'fixture'}:body) } : {}) });
     assert.equal((await request('me')).status, 401);
     assert.equal((await request('login', { method: 'POST', body: { email: 'admin@example.test', password }, origin: 'https://evil.test' })).status, 403);
     assert.equal((await request('login', { method: 'POST', body: { email: 'admin@example.test', password: 'wrong' } })).status, 401);
@@ -46,7 +47,7 @@ test('Autenticação e permissões no runtime Cloudflare com D1', async () => {
     const token2 = again.headers.get('set-cookie').split(';')[0];
     assert.equal((await request('logout', { method: 'POST', token: token2, body: {} })).status, 200);
     assert.equal((await request('me', { token: token2 })).status, 401);
-    await db.prepare('INSERT INTO login_limits VALUES (?, 8, ?)').bind(await sha('email:limit@example.test'), Date.now() + 60000).run();
+    await db.prepare('INSERT INTO login_limits VALUES (?, 8, ?)').bind(await sha('email:fixture:limit@example.test'), Date.now() + 60000).run();
     assert.equal((await request('login', { method: 'POST', body: { email: 'limit@example.test', password } })).status, 429);
     const audit = await db.prepare('SELECT COUNT(*) AS count FROM audit').first();
     assert.equal(audit.count, 2);

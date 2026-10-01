@@ -46,7 +46,7 @@ const quote = value => `'${String(value).replaceAll("'", "''")}'`;
 await mkdir('.wrangler/bootstrap', { recursive: true });
 const file = `.wrangler/bootstrap/${randomUUID()}.sql`;
 try {
-  await writeFile(file, `INSERT INTO users (id,name,email,password_hash,role,active,created_at) SELECT ${quote(randomUUID())},${quote(name)},${quote(email)},${quote(hash)},'ADMIN',1,${Date.now()} WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='ADMIN');`, { mode: 0o600 });
+  await writeFile(file, `INSERT INTO users (id,name,email,password_hash,role,access_role,active,created_at) SELECT ${quote(randomUUID())},${quote(name)},${quote(email)},${quote(hash)},'ADMIN','MASTER',1,${Date.now()} WHERE NOT EXISTS (SELECT 1 FROM users WHERE access_role='MASTER');`, { mode: 0o600 });
   const result = spawnSync(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'd1', 'execute', 'captabit-local', '--local', '--config', 'wrangler.local.jsonc', '--file', file], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error('Falha na gravação. Pare o servidor local (Ctrl+C em npm run dev), confira as permissões da pasta e tente novamente.');
   console.log('Procedimento concluído. Se já havia ADMIN, nenhuma conta foi alterada. Entre na aplicação local para verificar.');

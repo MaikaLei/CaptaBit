@@ -1,3 +1,5 @@
+> Plano histórico. A implementação e a decisão posterior de manter os dados antigos somente no Master estão descritas em [Multiempresa implementado](15-multiempresa-implementado.md).
+
 # Preparação para comercialização — arquitetura multiempresa
 
 Estado: especificação para a próxima migração. O sistema atual NÃO é multiempresa; não liberar uma segunda imobiliária antes da implementação e dos testes abaixo. Esta especificação substitui o significado global do ADMIN e do cruzamento de duplicidades dos documentos iniciais.

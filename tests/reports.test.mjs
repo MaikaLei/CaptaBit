@@ -4,25 +4,26 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 test('Relatórios: filtros, totais, datas, CSV e isolamento',async()=>{
-  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
+  const mf=new Miniflare(convertV4MiniflareOptions({modules:[{type:'ESModule',path:'src/worker/index.js'},{type:'ESModule',path:'src/domain/password.js'},{type:'ESModule',path:'src/worker/leads.js'},{type:'ESModule',path:'src/domain/leads.js'}, { type: 'ESModule', path: 'src/domain/duplicates.js' }, { type: 'ESModule', path: 'src/worker/duplicates.js' }, { type: 'ESModule', path: 'src/domain/whatsapp.js' }, { type: 'ESModule', path: 'src/domain/contact-outcomes.js' }, { type: 'ESModule', path: 'src/worker/reports.js' }, {type:'ESModule',path:'src/worker/companies.js'}],modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
   try {
     const db=await mf.getD1Database('DB');
-    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql','0006_user_management.sql']) {
+    for(const file of ['0001_auth.sql','0002_captacoes.sql','0003_duplicates.sql','0004_contact_outcomes.sql','0005_proprietor.sql','0006_user_management.sql','0007_companies.sql']) {
       const sql=await readFile(`migrations/${file}`,'utf8');
       // D1 exec accepts multi-statement SQL when each complete statement is on one line.
-      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE)/);
+      const statements=sql.trim().split(/(?<=;)\s*(?=CREATE|PRAGMA|ALTER|DROP|UPDATE|DELETE)/);
       for(const statement of statements) await db.prepare(statement.trim()).run();
     }
+    await db.prepare("INSERT INTO companies (id,slug,name,created_at) VALUES ('fixture','fixture','Criativa Imóveis',0)").run();
     const tokens={};
     for(const [id,role] of [['a','CAPTADOR'],['b','CAPTADOR'],['admin','ADMIN']]) {
       tokens[id]=(id==='a'?'a':id==='b'?'b':'c').repeat(64);
       const hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(tokens[id]))).toString('hex');
-      await db.prepare('INSERT INTO users (id,name,email,password_hash,role,active,created_at) VALUES (?,?,?,?,?,1,?)').bind(id,id,`${id}@example.test`,'unused',role,Date.now()).run();
+      await db.prepare(`INSERT INTO users (id,name,email,password_hash,role,active,created_at,company_id,access_role) VALUES (?,?,?,?,?,1,?,'fixture',?)`).bind(id,id,`${id}@example.test`,'unused',role,Date.now(),role==='ADMIN'?'BROKER':'CAPTADOR').run();
       await db.prepare('INSERT INTO sessions VALUES (?,?,?)').bind(hash,id,Date.now()+600000).run();
     }
     const req=(as,path,method='GET',body)=>mf.dispatchFetch(`https://test.local/api/${path}`,{method,headers:{Origin:'https://test.local','Content-Type':'application/json',Cookie:`captabit_session=${tokens[as]}`},...(body?{body:JSON.stringify(body)}:{})});
     const start=Date.parse('2026-01-02T03:00:00Z');
-    const seed=async(id,owner,created,name='Maria')=>db.prepare('INSERT INTO leads (id,owner_id,proprietor_name,type,purpose,street,city,actor_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id,owner,name,'Casa','Locação','Rua "Teste"; Centro','Cidade',owner,created,created).run();
+    const seed=async(id,owner,created,name='Maria')=>db.prepare(`INSERT INTO leads (id,owner_id,proprietor_name,type,purpose,street,city,actor_id,created_at,updated_at,company_id) VALUES (?,?,?,?,?,?,?,?,?,?,'fixture')`).bind(id,owner,name,'Casa','Locação','Rua "Teste"; Centro','Cidade',owner,created,created).run();
     for(let i=0;i<23;i++)await seed('a'+i,'a',start+i*1000,i===0?'=SUM(1;2)"\nNome':'Maria');
     await seed('before','a',start-1);await seed('after','a',start+86400000);
     await seed('private','b',start,'SEGREDO OUTRA CARTEIRA');

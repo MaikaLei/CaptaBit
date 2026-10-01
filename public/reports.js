@@ -16,7 +16,7 @@ export async function mountReports(api,user,message,initialFilters) {
   field(filters,'proprietor','Proprietário');field(filters,'property','Imóvel: rua, número, bairro ou cidade');
   field(filters,'status','Andamento',[['','Todos'],...options.leadStatuses.map(s=>[s,s])]);
   field(filters,'outcome','Resultado do contato',[['','Todos'],...options.contactOutcomes.map(o=>[o.id,o.name])]);
-  if(user.role==='ADMIN') {
+  if(user.role!=='CAPTADOR') {
     const {users}=await api('users?include_deleted=1');field(filters,'owner_id','Captador responsável',[['','Toda a equipe'],...users.map(u=>[u.id,u.name+(u.deleted?' (excluído)':u.active?'':' (inativo)')])]);
   }
   const apply=el('button','Aplicar filtros');apply.type='submit';filters.append(apply);
@@ -60,7 +60,7 @@ export async function mountReports(api,user,message,initialFilters) {
   async function exportCsv() {
     download.disabled=true;message();
     try {
-      const response=await fetch('/api/reports/captacoes.csv?'+applied,{credentials:'same-origin'});
+      const response=await fetch('/api/reports/captacoes.csv?'+applied,{credentials:'same-origin',headers:{'X-Account':new URLSearchParams(location.search).get('conta')||''}});
       if(!response.ok){const error=await response.json();throw new Error(error.error||'Não foi possível exportar.');}
       const url=URL.createObjectURL(await response.blob());const link=el('a');link.href=url;link.download='captabit-captacoes.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }catch(error){message(error.message);}finally{download.disabled=false;}
@@ -70,10 +70,10 @@ export async function mountReports(api,user,message,initialFilters) {
     detail.append(el('h3',`${lead.proprietor_name||'Proprietário a preencher'} · ${lead.street}`),button('Fechar acompanhamento',()=>detail.replaceChildren()));
     const form=el('form',undefined,'form-grid');
     const terminal=['Captado','Recusado','Já alugado','Encerrado'].includes(lead.status);
-    const allowed=user.role==='ADMIN'?options.leadStatuses:terminal?[lead.status]:options.leadStatuses.filter(s=>s!=='Encerrado');
+    const allowed=user.role!=='CAPTADOR'?options.leadStatuses:terminal?[lead.status]:options.leadStatuses.filter(s=>s!=='Encerrado');
     const status=field(form,'status','Andamento',allowed.map(s=>[s,s]));status.value=lead.status;
     const save=el('button','Salvar andamento');save.type='submit';form.append(save);detail.append(form);
-    if(user.role!=='ADMIN' && terminal){save.disabled=true;detail.append(el('small','Peça ao administrador para reabrir ou alterar o andamento desta captação.'));}
+    if(user.role==='CAPTADOR' && terminal){save.disabled=true;detail.append(el('small','Peça ao administrador para reabrir ou alterar o andamento desta captação.'));}
     form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;message();try{await api(`leads/${id}`,'PATCH',{status:status.value,version:lead.version});await load();await open(id);message('Andamento atualizado.');}catch(error){message(error.message);save.disabled=false;}});
     detail.append(el('h4','Resultados dos contatos'));
     if(!contacts.length)detail.append(el('p','Nenhum telefone ativo.'));

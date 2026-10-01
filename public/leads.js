@@ -18,8 +18,8 @@ function bindForm(form,submitLabel,action,message) {
 export async function mountLeads(api,user,message) {
   const root=document.getElementById('leads-panel'); root.replaceChildren();
   const options=await api('lead-options'); let page=0; let query=''; let filter=''; let owners=[];
-  if (user.role==='ADMIN') owners=(await api('users?include_deleted=1')).users;
-  const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='ADMIN'?'Captações da equipe':'Minhas captações')); root.append(heading);
+  if (user.role!=='CAPTADOR') owners=(await api('users?include_deleted=1')).users;
+  const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='MASTER'?'Base reservada do Master':user.role==='BROKER'?'Captações da equipe':'Minhas captações')); root.append(heading);
   const create=element('form',undefined,'lead-form'); create.hidden=true;
   heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));
   root.append(element('p','Cadastre o essencial e complemente durante a pesquisa.'));
@@ -39,7 +39,7 @@ export async function mountLeads(api,user,message) {
     if(!result.leads.length) list.append(element('p','Nenhuma captação encontrada.'));
     for(const lead of result.leads) {
       const row=element('article',undefined,'lead-row'); const title=button(`${lead.type} · ${lead.street}${lead.number?', '+lead.number:''}`,()=>openLead(lead.id).catch(error=>message(error.message)),'lead-link');
-      const info=element('div'); info.append(title,element('p',`${lead.district ? lead.district+' · ':''}${lead.city} · ${lead.purpose}${user.role==='ADMIN'?' · '+lead.owner_name:''}`));
+      const info=element('div'); info.append(title,element('p',`${lead.district ? lead.district+' · ':''}${lead.city} · ${lead.purpose}${user.role!=='CAPTADOR'?' · '+lead.owner_name:''}`));
       const meta=element('div'); meta.append(element('small',`${lead.contacts_count} contato(s)`)); row.append(info,meta); list.append(row);
     }
     pager.append(button('Anterior',()=>{ page--; load().catch(error=>message(error.message)); })); pager.firstChild.disabled=page===0;
@@ -55,7 +55,7 @@ export async function mountLeads(api,user,message) {
     field(grid,'proprietor_name',lead.proprietor_name); field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
     for(const key of ['street','number','complement','district','city','state','postal_code','source','source_url','notes']) field(grid,key,lead[key]);
     field(grid,'status',lead.status,options.leadStatuses);
-    if(user.role==='ADMIN') field(grid,'owner_id',lead.owner_id,owners.filter(owner=>owner.active||owner.id===lead.owner_id).map(owner=>({id:owner.id,name:owner.name})));
+    if(user.role!=='CAPTADOR') field(grid,'owner_id',lead.owner_id,owners.filter(owner=>owner.active||owner.id===lead.owner_id).map(owner=>({id:owner.id,name:owner.name})));
     bindForm(edit,'Salvar alterações',async data=>{ await api(`leads/${id}`,'PATCH',{...data,version:lead.version}); await load(); await openLead(id); message('Captação atualizada.'); },message); followup.append(edit);
     detail.append(element('h3','Possíveis contatos'));
     if(!contacts.length) detail.append(element('p','Nenhum telefone cadastrado ainda.'));

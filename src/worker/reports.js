@@ -25,11 +25,11 @@ export async function reportRoutes(request, db, user, { json, fail }) {
     if(!p.has('from') && !p.has('to')){const now=Date.now();p.set('from',localDate(now-29*86400000).slice(0,10));p.set('to',localDate(now).slice(0,10));}
     if(!p.get('from') || !p.get('to'))invalid('Informe a data inicial e final.');
   }
-  const where = []; const args = [];
-  if (user.role !== 'ADMIN') { where.push('l.owner_id=?'); args.push(user.id); }
+  const where = ['l.company_id IS ?']; const args = [user.company_id];
+  if (user.role === 'CAPTADOR') { where.push('l.owner_id=?'); args.push(user.id); }
   const owner = text(p.get('owner_id') || '',200);
   if (owner) {
-    if (user.role !== 'ADMIN' && owner !== user.id) fail('Acesso não permitido.',403);
+    if (user.role === 'CAPTADOR' && owner !== user.id) fail('Acesso não permitido.',403);
     where.push('l.owner_id=?'); args.push(owner);
   }
   for (const [key,columns] of [['proprietor',['l.proprietor_name']],['property',['l.street','l.number','l.complement','l.district','l.city','l.type']]]) {
@@ -60,7 +60,7 @@ export async function reportRoutes(request, db, user, { json, fail }) {
       db.prepare(`SELECT COUNT(c.id) AS contacts_count,${counts} FROM leads l LEFT JOIN contacts c ON c.lead_id=l.id AND c.deleted_at IS NULL WHERE ${clause}`).bind(...args),
       db.prepare(`SELECT l.status,COUNT(*) AS total FROM leads l WHERE ${clause} GROUP BY l.status`).bind(...args),
       db.prepare(`SELECT date(l.created_at/1000,'unixepoch','-3 hours') AS day,COUNT(*) AS total FROM leads l WHERE ${clause} GROUP BY day ORDER BY day`).bind(...args),
-      db.prepare(`SELECT u.name AS captador,l.owner_id,COUNT(*) AS total FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${clause} AND ?=1 GROUP BY l.owner_id ORDER BY total DESC,u.name,l.owner_id`).bind(...args,Number(user.role==='ADMIN'))
+      db.prepare(`SELECT u.name AS captador,l.owner_id,COUNT(*) AS total FROM leads l JOIN users u ON u.id=l.owner_id WHERE ${clause} AND ?=1 GROUP BY l.owner_id ORDER BY total DESC,u.name,l.owner_id`).bind(...args,Number(user.role!=='CAPTADOR'))
     ]);
     const days=new Map(daily.results.map(row=>[row.day,row.total]));const trend=[];
     const step=to-from>31*86400000?7:1;
