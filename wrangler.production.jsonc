@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "captabit",
+  "main": "src/worker/index.js",
+  "compatibility_date": "2026-09-25",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "captabit-production",
+      "database_id": "2ab3d02e-00c2-474d-b238-b966c4198000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "preview_urls": false,
+  "account_id": "7bc90b95c5824f9f82ca12843da84d7a",
+  "vars": {
+    "PASSWORD_PROFILE": "cloudflare-v1"
+  }
+}
