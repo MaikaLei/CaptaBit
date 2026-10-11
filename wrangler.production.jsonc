@@ -23,6 +23,7 @@
   "preview_urls": false,
   "account_id": "7bc90b95c5824f9f82ca12843da84d7a",
   "vars": {
-    "PASSWORD_PROFILE": "cloudflare-v1"
+    "PASSWORD_PROFILE": "cloudflare-v1",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFUJQZsH4jc3wRiC"
   }
 }

@@ -1,3 +1,4 @@
+import {mountOwnerForms} from './owner-forms.js';
 const el = (tag,text,className) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;};
 const date = value => new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
 function field(form,name,label,choices) {
@@ -90,6 +91,7 @@ export async function mountReports(api,user,message,initialFilters,mode='report'
     detail.append(el('h4','Resultados dos contatos'));
     if(!contacts.length)detail.append(el('p','Nenhum telefone ativo.'));
     for(const contact of contacts){const outcome=options.contactOutcomes.find(o=>o.id===contact.outcome);detail.append(el('p',`+${contact.phone} · ${outcome?.name||'Não verificado'}`,`outcome-badge outcome-${outcome?.tone||'neutral'}`));}
+    const ownerForms=el('section',undefined,'followup');detail.append(ownerForms);await mountOwnerForms(ownerForms,lead,api,message);
     const history=el('ol',undefined,'history');detail.append(el('h4','Histórico'),history);
     let cursor;const more=button('Carregar eventos anteriores',()=>historyPage().catch(e=>message(e.message)));detail.append(more);
     const labels={message_model:'Modelo da mensagem',status:'Andamento',proprietor_name:'Proprietário',owner_id:'Responsável',phone:'Telefone',name:'Nome',notes:'Observações',outcome:'Resultado',deleted_at:'Exclusão',type:'Tipo',purpose:'Finalidade',street:'Logradouro',number:'Número',complement:'Complemento',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link'};

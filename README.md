@@ -37,3 +37,5 @@ Decisões recuperadas da conversa “Melhore script captação imóveis” e da 
 ## Desenvolvimento
 
 Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de evolução. Para instalar e executar a aplicação, siga [Execução local](docs/06-execucao-local.md). A publicação é manual, com configuração separada do ambiente local. Consulte [Cloudflare](docs/16-cloudflare.md).
+
+Ficha por link, identidade por imobiliária, taxas versionadas e documento para impressão: [Ficha do proprietário](docs/18-ficha-proprietario.md).

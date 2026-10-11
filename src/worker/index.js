@@ -1,3 +1,4 @@
+import {publicFormRoutes,ownerFormRoutes} from './owner-forms.js';
 import { companyRoutes } from './companies.js';
 import { reportRoutes } from './reports.js';
 import { leadRoutes } from './leads.js';
@@ -15,7 +16,7 @@ function tokenFrom(request) {
 function cookie(request, value, maxAge) {
   return `${cookieName}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${new URL(request.url).protocol === 'https:' ? '; Secure' : ''}`;
 }
-async function bodyOf(request) {
+async function bodyOf(request,maxSize=8192) {
   if (!request.headers.get('Content-Type')?.startsWith('application/json')) fail('Formato inválido.', 415);
   const reader = request.body?.getReader();
   if (!reader) fail('Dados inválidos.', 400);
@@ -24,7 +25,7 @@ async function bodyOf(request) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > 8192) { await reader.cancel(); fail('Dados muito grandes.', 413); }
+    if (size > maxSize) { await reader.cancel(); fail('Dados muito grandes.', 413); }
     chunks.push(value);
   }
   const bytes = new Uint8Array(size); let offset = 0;
@@ -50,6 +51,7 @@ async function route(request, env) {
   const url = new URL(request.url); const path = url.pathname; const db = env.DB;
   if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
   if (!['GET', 'HEAD'].includes(request.method) && request.headers.get('Origin') !== url.origin) fail('Origem não permitida.', 403);
+  const publicForm=await publicFormRoutes(request,env,{json,fail,bodyOf});if(publicForm)return publicForm;
   if(path==='/api/account' && request.method==='GET'){
     const slug=url.searchParams.get('company')||'';
     if(!slug)return json({name:'Acesso Master',manager:null});
@@ -81,6 +83,7 @@ async function route(request, env) {
   }
   const user = await userOf(request, db);
   if(request.headers.has('X-Account') && request.headers.get('X-Account')!==(user.company_slug||''))fail('Sua sessão mudou de conta. Entre novamente neste link.',401);
+  const ownerForm=await ownerFormRoutes(request,env,user,{json,fail,bodyOf});if(ownerForm)return ownerForm;
   const companyResponse=await companyRoutes(request,db,user,{json,fail,bodyOf,passwords:passwordOptions(env)});
   if(companyResponse)return companyResponse;
   const reportResponse = await reportRoutes(request, db, user, { json, fail });
@@ -141,9 +144,10 @@ export default {
     try { response = await route(request, env); }
     catch (error) { if (!error.status) console.error('Request failed', { name: error.name, message: error.message }); response = json({ error: error.status ? error.message : 'Serviço temporariamente indisponível. Tente novamente.' }, error.status || 503); }
     response = new Response(response.body, response);
+    if(new URL(request.url).pathname.startsWith('/ficha')){response.headers.set('Cache-Control','no-store');response.headers.set('X-Robots-Tag','noindex, nofollow');}
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'no-referrer');
-    response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     return response;
   }
 };

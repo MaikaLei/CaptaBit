@@ -12,13 +12,14 @@
   </section>
   <section id="workspace" hidden>
     <aside class="sidebar">
-      <img class="sidebar-brand" src="/assets/brand/captabit-logo-original.png" alt="CaptaBit by ZapBits">
+      <small id="powered-by" hidden>CaptaBit by ZapBits</small><img class="sidebar-brand" src="/assets/brand/captabit-logo-original.png" alt="CaptaBit by ZapBits">
       <span class="eyebrow">SEU ESPAÇO DE CAPTAÇÃO</span>
       <nav class="workspace-nav" aria-label="Áreas do sistema">
         <button id="nav-dashboard" aria-pressed="false">Visão Geral</button>
         <button id="nav-leads" aria-pressed="false">Cadastrar</button>
         <button id="nav-reports" aria-pressed="false">Acompanhamento</button>
         <button id="nav-admin" aria-pressed="false" hidden>Equipe</button>
+        <button id="nav-profile" aria-pressed="false" hidden>Imobiliária</button>
         <button id="nav-companies" aria-pressed="false" hidden>Imobiliárias</button>
       </nav>
       <div class="sidebar-footer"><small>Menos cadastro, mais captação.</small><button id="logout" class="secondary">Sair da conta</button></div>
@@ -26,6 +27,7 @@
     <div class="workspace-content">
     <div class="welcome"><div><span class="eyebrow">BEM-VINDO AO CAPTABIT</span><h1 id="greeting"></h1></div><p id="profile"></p></div>
     <div id="overview-tabs" class="overview-tabs" hidden aria-label="Visão geral"><button id="overview-indicators" class="secondary">Indicadores</button><button id="overview-reports" class="secondary">Relatórios e exportação</button></div>
+    <section id="profile-panel" class="panel" hidden></section>
     <section id="companies-panel" class="panel" hidden></section>
     <section id="dashboard-panel" class="panel" hidden></section>
     <section id="reports-panel" class="panel" hidden></section>

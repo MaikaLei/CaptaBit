@@ -1,3 +1,4 @@
+import {mountProfile} from './company-profile.js';
 import { mountCompanies } from './companies.js';
 import { userActionDialog } from './user-actions.js';
 import { mountDashboard } from './dashboard.js';
@@ -22,7 +23,7 @@ async function showWorkspace(user) {
   byId('greeting').textContent = `Olá, ${user.name}.`;
   byId('profile').textContent = user.role==='MASTER'?'Master · Dados antigos reservados':`${user.company_name} · ${user.role==='BROKER'?'Broker / gerente':'Captador'}`;
   function selectArea(area) {
-    for(const id of ['companies','dashboard','leads','reports','admin']) {
+    for(const id of ['companies','dashboard','leads','reports','admin','profile']) {
       byId(id+'-panel').hidden=id!==area;
       byId('nav-'+id).setAttribute('aria-pressed',String(id===area));
     }
@@ -33,6 +34,8 @@ async function showWorkspace(user) {
     byId('overview-indicators').setAttribute('aria-pressed',String(!reports));byId('overview-reports').setAttribute('aria-pressed',String(reports));
     try {if(reports)await mountReports(api,user,message,filters,'report');else await mountDashboard(api,user,message,filters=>overview(true,filters));}catch(error){message(error.message);}
   }
+  byId('nav-profile').hidden=user.role!=='BROKER';
+  byId('nav-profile').onclick=async()=>{if(user.role!=='BROKER')return;selectArea('profile');try{await mountProfile(byId('profile-panel'),user.company_id,api,message);}catch(e){message(e.message);}};
   byId('nav-companies').hidden=user.role!=='MASTER';byId('nav-admin').hidden=user.role==='CAPTADOR';byId('user-form').hidden=user.role!=='BROKER';
   byId('nav-companies').onclick=async()=>{selectArea('companies');try{await mountCompanies(api,message);}catch(error){message(error.message);}};
   byId('nav-admin').onclick=async()=>{if(user.role==='CAPTADOR')return;selectArea('admin');try{await loadUsers();}catch(error){message(error.message);}};
@@ -73,3 +76,6 @@ let account;
 try {account=await api('account?company='+encodeURIComponent(companySlug));byId('account-label').textContent=account.name;}catch(error){byId('account-label').textContent=error.message;}
 byId('forgot-password').addEventListener('click',()=>{byId('password-help').textContent=account?.manager?`Contate o gerente da sua conta: ${account.manager}. Se você é o Broker, solicite a redefinição ao Master.`:companySlug?'Confira o link da imobiliária com seu gerente.':'Para recuperar uma conta de imobiliária, entre pelo link fornecido pelo seu Broker. A recuperação do Master exige suporte administrativo local.';});
 try { const result = await api('me'); if((result.user.company_slug||'')===companySlug)await showWorkspace(result.user);else showLogin(); } catch (error) { if (error.status !== 401) message(error.message); }
+
+async function refreshBranding(){if(!companySlug)return;try{const data=await api('branding?company='+encodeURIComponent(companySlug));for(const img of document.querySelectorAll('.sidebar-brand,.brand')){img.src=data.logo||'/assets/brand/captabit-logo-original.png';img.alt=data.logo?data.name:'CaptaBit by ZapBits';}byId('powered-by').hidden=!data.logo;}catch{/* Branding failure must not block access. */}}
+window.addEventListener('branding-updated',refreshBranding);await refreshBranding();
