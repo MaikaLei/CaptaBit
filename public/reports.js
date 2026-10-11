@@ -1,13 +1,13 @@
 const el = (tag,text,className) => {const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(className)n.className=className;return n;};
 const date = value => new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
 function field(form,name,label,choices) {
-  const wrapper=el('label',label); const input=el(choices?'select':'input');input.name=name;
+  const wrapper=el('label',label);wrapper.className='field-'+name; const input=el(choices?'select':name==='notes'?'textarea':'input');input.name=name;
   if(choices) for(const [value,title] of choices) {const option=el('option',title);option.value=value;input.append(option);}
-  else input.maxLength=200;
+  else input.maxLength=name==='notes'?2000:name==='source_url'?1000:200;
   wrapper.append(input);form.append(wrapper);return input;
 }
 function button(text,handler,className='secondary') {const b=el('button',text,className);b.type='button';b.addEventListener('click',handler);return b;}
-export async function mountReports(api,user,message,initialFilters,mode='report') {
+export async function mountReports(api,user,message,initialFilters,mode='report',initialLeadId) {
   const root=document.getElementById('reports-panel');root.replaceChildren();
   const options=await api('lead-options');
   const reporting=mode==='report';
@@ -17,8 +17,9 @@ export async function mountReports(api,user,message,initialFilters,mode='report'
   field(filters,'proprietor','Proprietário');field(filters,'property','Imóvel: rua, número, bairro ou cidade');
   field(filters,'status','Andamento',[['','Todos'],...options.leadStatuses.map(s=>[s,s])]);
   field(filters,'outcome','Resultado do contato',[['','Todos'],...options.contactOutcomes.map(o=>[o.id,o.name])]);
+  let owners=[];
   if(user.role!=='CAPTADOR') {
-    const {users}=await api('users?include_deleted=1');field(filters,'owner_id','Captador responsável',[['','Toda a equipe'],...users.map(u=>[u.id,u.name+(u.deleted?' (excluído)':u.active?'':' (inativo)')])]);
+    const {users}=await api('users?include_deleted=1');owners=users;field(filters,'owner_id','Captador responsável',[['','Toda a equipe'],...users.map(u=>[u.id,u.name+(u.deleted?' (excluído)':u.active?'':' (inativo)')])]);
   }
   const apply=el('button','Aplicar filtros');apply.type='submit';filters.append(apply);
   const reset=button('Limpar filtros',()=>{filters.reset();page=0;applied=new URLSearchParams();run();});filters.append(reset);
@@ -77,6 +78,15 @@ export async function mountReports(api,user,message,initialFilters,mode='report'
     const save=el('button','Salvar andamento');save.type='submit';form.append(save);detail.append(form);
     if(user.role==='CAPTADOR' && terminal){save.disabled=true;detail.append(el('small','Peça ao administrador para reabrir ou alterar o andamento desta captação.'));}
     form.addEventListener('submit',async event=>{event.preventDefault();save.disabled=true;message();try{await api(`leads/${id}`,'PATCH',{status:status.value,version:lead.version});await load();await open(id);message('Andamento atualizado.');}catch(error){message(error.message);save.disabled=false;}});
+    const extras=el('details',undefined,'followup');extras.append(el('summary','Dados do imóvel'));const edit=el('form',undefined,'form-grid');extras.append(edit);
+    const names={proprietor_name:'Proprietário',type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações'};
+    for(const [key,label] of Object.entries(names)){
+      const choices=key==='type'?options.propertyTypes:key==='purpose'?['Locação','Venda']:null;
+      const input=field(edit,key,label,choices?.map(v=>[v,v]));input.value=lead[key]||'';if(['proprietor_name','type','purpose','street','city'].includes(key))input.required=true;
+    }
+    if(user.role!=='CAPTADOR'){const owner=field(edit,'owner_id','Responsável',owners.filter(o=>o.active||o.id===lead.owner_id).map(o=>[o.id,o.name]));owner.value=lead.owner_id;}
+    const saveDetails=el('button','Salvar dados do imóvel');saveDetails.type='submit';edit.append(saveDetails);
+    edit.addEventListener('submit',async event=>{event.preventDefault();saveDetails.disabled=true;try{await api('leads/'+id,'PATCH',{...Object.fromEntries(new FormData(edit)),version:lead.version});await load();await open(id);message('Dados do imóvel atualizados.');}catch(error){message(error.message);saveDetails.disabled=false;}});detail.append(extras);
     detail.append(el('h4','Resultados dos contatos'));
     if(!contacts.length)detail.append(el('p','Nenhum telefone ativo.'));
     for(const contact of contacts){const outcome=options.contactOutcomes.find(o=>o.id===contact.outcome);detail.append(el('p',`+${contact.phone} · ${outcome?.name||'Não verificado'}`,`outcome-badge outcome-${outcome?.tone||'neutral'}`));}
@@ -97,4 +107,5 @@ export async function mountReports(api,user,message,initialFilters,mode='report'
     await historyPage();detail.scrollIntoView({behavior:'smooth',block:'start'});
   }
   await load();
+  if(initialLeadId && !reporting)await open(initialLeadId);
 }

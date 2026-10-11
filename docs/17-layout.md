@@ -9,3 +9,9 @@ Cadastrar mantém cadastro, busca e contato inicial; campos distribuídos em col
 Alteração exclusivamente na interface; nenhuma migração, importação ou gravação administrativa no banco. Permissões continuam verificadas pelo servidor.
 
 Validação visual com dados fictícios em 1440px e 390px: navegação, relatórios, acompanhamento, contatos e visibilidade de menus nos três perfis. Navegador auxiliar encerrado após os testes.
+
+## Contato inicial simplificado
+
+Ao abrir um imóvel, a lista, busca e cabeçalho de cadastro ficam ocultos; os contatos ocupam toda a largura. O botão inferior Voltar para a lista preserva a busca e a página na mesma tela. Cada item da lista possui Acompanhar, que abre o imóvel pelo identificador na área de acompanhamento. A edição dos dados do imóvel, responsável e histórico fica nessa área. Sem alterações no banco.
+
+Validação com dados fictícios: lista oculta no detalhe, retorno, abertura direta do imóvel, edição disponível em Acompanhamento, histórico, layout desktop e celular. Navegador de teste fechado ao concluir.

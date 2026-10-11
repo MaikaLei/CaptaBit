@@ -36,9 +36,10 @@ async function showWorkspace(user) {
   byId('nav-companies').hidden=user.role!=='MASTER';byId('nav-admin').hidden=user.role==='CAPTADOR';byId('user-form').hidden=user.role!=='BROKER';
   byId('nav-companies').onclick=async()=>{selectArea('companies');try{await mountCompanies(api,message);}catch(error){message(error.message);}};
   byId('nav-admin').onclick=async()=>{if(user.role==='CAPTADOR')return;selectArea('admin');try{await loadUsers();}catch(error){message(error.message);}};
-  byId('nav-reports').onclick=async()=>{selectArea('reports');try{await mountReports(api,user,message,undefined,'followup');}catch(error){message(error.message);}};
+  async function showFollowup(id){selectArea('reports');try{await mountReports(api,user,message,undefined,'followup',id);}catch(error){message(error.message);}}
+  byId('nav-reports').onclick=()=>showFollowup();
   byId('nav-dashboard').onclick=()=>overview();byId('overview-indicators').onclick=()=>overview();byId('overview-reports').onclick=()=>overview(true);
-  byId('nav-leads').onclick=async()=>{selectArea('leads');try{await mountLeads(api,user,message);}catch(error){message(error.message);}};
+  byId('nav-leads').onclick=async()=>{selectArea('leads');try{await mountLeads(api,user,message,showFollowup);}catch(error){message(error.message);}};
   if(user.role==='MASTER'){selectArea('companies');await mountCompanies(api,message);}else await overview();
 }
 async function loadUsers() {

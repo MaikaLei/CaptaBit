@@ -15,14 +15,13 @@ function bindForm(form,submitLabel,action,message) {
   const submit=element('button',submitLabel); submit.type='submit'; form.append(submit);
   form.addEventListener('submit',async event=>{ event.preventDefault(); submit.disabled=true; message(); try { await action(Object.fromEntries(new FormData(form))); } catch(error) { message(error.message); } finally { submit.disabled=false; } });
 }
-export async function mountLeads(api,user,message) {
+export async function mountLeads(api,user,message,showFollowup) {
   const root=document.getElementById('leads-panel'); root.replaceChildren();
-  const options=await api('lead-options'); let page=0; let query=''; let filter=''; let owners=[];
-  if (user.role!=='CAPTADOR') owners=(await api('users?include_deleted=1')).users;
+  const options=await api('lead-options'); let page=0; let query=''; let filter='';
   const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='MASTER'?'Base reservada do Master':user.role==='BROKER'?'Captações da equipe':'Minhas captações')); root.append(heading);
   const create=element('form',undefined,'lead-form'); create.hidden=true;
   heading.append(button('+ Cadastrar imóvel',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));
-  root.append(element('p','Cadastre o essencial e complemente durante a pesquisa.'));
+  const intro=element('p','Cadastre o essencial e complemente durante a pesquisa.');root.append(intro);
   const warning=element('p','Endereços e telefones são comparados entre as carteiras. Alertas não impedem o cadastro; revise-os antes de contatar.','note-inline'); root.append(warning);
   const basic=element('div',undefined,'form-grid'); create.append(basic);
   field(basic,'proprietor_name'); field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda']);
@@ -40,23 +39,15 @@ export async function mountLeads(api,user,message) {
     for(const lead of result.leads) {
       const row=element('article',undefined,'lead-row'); const title=button(`${lead.type} · ${lead.street}${lead.number?', '+lead.number:''}`,()=>openLead(lead.id).catch(error=>message(error.message)),'lead-link');
       const info=element('div'); info.append(title,element('p',`${lead.district ? lead.district+' · ':''}${lead.city} · ${lead.purpose}${user.role!=='CAPTADOR'?' · '+lead.owner_name:''}`));
-      const meta=element('div'); meta.append(element('small',`${lead.contacts_count} contato(s)`)); row.append(info,meta); list.append(row);
+      const meta=element('div',undefined,'lead-row-actions'); meta.append(button('Acompanhar',()=>showFollowup(lead.id)),element('small',`${lead.contacts_count} contato(s)`)); row.append(info,meta); list.append(row);
     }
     pager.append(button('Anterior',()=>{ page--; load().catch(error=>message(error.message)); })); pager.firstChild.disabled=page===0;
     pager.append(element('span',`Página ${page+1}`),button('Próxima',()=>{ page++; load().catch(error=>message(error.message)); })); pager.lastChild.disabled=!result.hasMore;
   }
   async function openLead(id,scroll=true) {
-    const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); browser.classList.add('has-detail'); detail.append(element('h2',`${lead.type} · ${lead.street}`));
+    const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); browser.classList.add('has-detail');portfolio.hidden=true;heading.hidden=true;intro.hidden=true;warning.hidden=true;search.hidden=true;create.hidden=true; detail.append(element('h2',`${lead.type} · ${lead.street}`));
     detail.append(element('p',`Proprietário: ${lead.proprietor_name || 'Preencher no cadastro'}`));
-    detail.append(button('Fechar detalhes',()=>{detail.replaceChildren();browser.classList.remove('has-detail');}));
     const alertBox=element('aside',undefined,'note-inline'); renderAlerts(alertBox,duplicates); detail.append(alertBox);
-    const followup=element('details',undefined,'followup'); followup.append(element('summary','Dados do imóvel e acompanhamento'));
-    const edit=element('form',undefined,'lead-form'); const grid=element('div',undefined,'form-grid'); edit.append(grid);
-    field(grid,'proprietor_name',lead.proprietor_name); field(grid,'type',lead.type,options.propertyTypes); field(grid,'purpose',lead.purpose,['Locação','Venda']);
-    for(const key of ['street','number','complement','district','city','state','postal_code','source','source_url','notes']) field(grid,key,lead[key]);
-    field(grid,'status',lead.status,options.leadStatuses);
-    if(user.role!=='CAPTADOR') field(grid,'owner_id',lead.owner_id,owners.filter(owner=>owner.active||owner.id===lead.owner_id).map(owner=>({id:owner.id,name:owner.name})));
-    bindForm(edit,'Salvar alterações',async data=>{ await api(`leads/${id}`,'PATCH',{...data,version:lead.version}); await load(); await openLead(id); message('Captação atualizada.'); },message); followup.append(edit);
     detail.append(element('h3','Possíveis contatos'));
     if(!contacts.length) detail.append(element('p','Nenhum telefone cadastrado ainda.'));
     detail.append(element('p','O botão abre a mensagem no WhatsApp. Revise e confirme o envio por lá.','contact-hint'));
@@ -87,23 +78,8 @@ export async function mountLeads(api,user,message) {
     }
     const add=element('form',undefined,'form-grid'); add.append(element('h3','Adicionar telefone')); field(add,'phone');
     bindForm(add,'Adicionar contato',async data=>{ await api(`leads/${id}/contacts`,'POST',data); await load(); await openLead(id); },message); detail.append(add);
-    detail.append(followup);
-    const historyPanel=element('details',undefined,'followup'); historyPanel.append(element('summary','Histórico e acompanhamento'));detail.append(historyPanel);
- const history=element('ol',undefined,'history'); const moreEvents=button('Carregar eventos anteriores',()=>loadHistory().catch(error=>message(error.message))); historyPanel.append(history,moreEvents); let cursor;
-    async function loadHistory() {
-      const result=await api(`leads/${id}/history${cursor?'?before='+cursor:''}`);
-      for(const event of result.events) {
-        const row=element('li'); row.append(element('strong',event.event),element('small',`${event.actor_name} · ${new Date(event.created_at).toLocaleString('pt-BR')}`));
-        for(const [key,value] of Object.entries(event.after)) {
-          if(event.before && event.before[key]===value) continue;
-          const readable=v=> key==='owner_id' ? owners.find(owner=>owner.id===v)?.name || 'Responsável registrado' : key==='outcome' ? options.contactOutcomes.find(item=>item.id===v)?.name || v : key==='deleted_at' ? v ? new Date(v).toLocaleString('pt-BR') : '—' : v || '—';
-          row.append(element('span',`${labels[key] || key}: ${event.before?readable(event.before[key])+' → ':''}${readable(value)}`));
-        }
-        history.append(row);
-      }
-      cursor=result.next; moreEvents.hidden=!cursor;
-    }
-    await loadHistory(); if(scroll) detail.scrollIntoView({behavior:'smooth',block:'start'});
+    detail.append(button('Voltar para a lista',()=>{detail.replaceChildren();browser.classList.remove('has-detail');portfolio.hidden=false;heading.hidden=false;intro.hidden=false;warning.hidden=false;search.hidden=false;search.scrollIntoView({block:'start'});}));
+    if(scroll) detail.scrollIntoView({behavior:'smooth',block:'start'});
   }
   await load();
 }
