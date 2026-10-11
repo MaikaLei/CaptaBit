@@ -16,7 +16,7 @@ export function whatsappMessage(lead,user,templateId='initial',now=new Date()) {
   const company=user.company_name || 'Criativa Imóveis';
   const closingCompany=user.company_name || 'Criativa';
   const rental = lead.purpose === 'Locação';
-  const purpose = rental ? 'locação' : 'venda';
+  const purpose = lead.purpose === 'Locação e venda' ? 'locação ou venda' : rental ? 'locação' : 'venda';
   const profession = rental ? 'corretor de locações' : 'corretor de imóveis';
   const types = { Casa:'uma casa', Apartamento:'um apartamento', Terreno:'um terreno', Comercial:'um imóvel comercial', Outro:'um imóvel' };
   const property = types[lead.type] || 'um imóvel';

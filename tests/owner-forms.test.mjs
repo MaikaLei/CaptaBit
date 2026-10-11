@@ -1,6 +1,6 @@
 import{test}from'node:test';import assert from'node:assert/strict';import{readFile,readdir}from'node:fs/promises';import{Miniflare,convertV4MiniflareOptions}from'miniflare';import{unstable_splitSqlQuery}from'wrangler';import{validateOwnerResponse}from'../src/worker/owner-forms.js';
 const response={name:'Proprietário de Teste',cpf:'529.982.247-25',email:'owner@example.test',phone:'51999990000',address:'Rua Teste, 100',sale_value:'',rent_value:'1800.00',condo_value:'200',iptu_value:'50',notes:'Exemplo',accepted:true,turnstile:'valid'};
-test('Ficha pública: isolamento, versões, CPF, aceite, expiração e envio único',async()=>{
+test('Ficha pública: isolamento, versões, CPF, aceite, finalidades e envio único',async()=>{
  const modules=[];for(const dir of ['src/worker','src/domain'])for(const file of await readdir(dir))if(file.endsWith('.js'))modules.push({type:'ESModule',path:dir+'/'+file});
  modules.sort((a,b)=>Number(b.path==='src/worker/index.js')-Number(a.path==='src/worker/index.js'));
  const mf=new Miniflare(convertV4MiniflareOptions({modules,modulesRoot:'src',compatibilityDate:'2026-09-25',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],bindings:{TURNSTILE_SITE_KEY:'test-site',TURNSTILE_SECRET_KEY:'test-secret'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'challenges.cloudflare.com');const form=await request.formData();return new Response(JSON.stringify({success:form.get('response')==='valid',hostname:'test.local',action:'owner-form'}),{headers:{'Content-Type':'application/json'}});}}));
@@ -29,6 +29,16 @@ test('Ficha pública: isolamento, versões, CPF, aceite, expiração e envio ún
  const second=await(await req('bx','leads/lx/owner-forms','POST',{})).json();assert.equal((await req(null,'owner-form/'+new URL(second.url).hash.slice(1),'POST',{...response,accepted:false})).status,201);assert.equal((await(await req('cx',`leads/lx/owner-forms/${second.id}`)).json()).accepted,false);
  const revoked=await(await req('bx','leads/lx/owner-forms','POST',{})).json();await req('bx',`leads/lx/owner-forms/${revoked.id}/revoke`,'POST',{});assert.equal((await req(null,'owner-form/'+new URL(revoked.url).hash.slice(1))).status,410);
  await assert.rejects(()=>db.prepare("UPDATE owner_forms SET declaration='alterada' WHERE id=?").bind(first.id).run());await assert.rejects(()=>db.prepare("UPDATE company_profiles SET fees_text='alterada' WHERE id=?").bind(version).run());
+
+ for(const purpose of ['Venda','Locação e venda']){
+  await db.prepare("UPDATE leads SET purpose=? WHERE id='lx'").bind(purpose).run();
+  const created=await req('cx','leads/lx/owner-forms','POST',{});assert.equal(created.status,201);const form=await created.json();const endpoint='owner-form/'+new URL(form.url).hash.slice(1);const data=await(await req(null,endpoint)).json();assert.equal(data.purpose,purpose);assert.match(data.declaration,/efetivação/);assert.doesNotMatch(data.declaration,/conclusão/);
+  assert.ok(data.declaration.includes(purpose==='Venda'?'efetivação da venda':'efetivação da locação ou da venda'));
+  const values={...response,sale_value:'300000',rent_value:purpose==='Venda'?'':'1800'};
+  assert.equal((await req(null,endpoint,'POST',{...values,sale_value:''})).status,400);
+  if(purpose==='Locação e venda')assert.equal((await req(null,endpoint,'POST',{...values,rent_value:''})).status,400);
+  assert.equal((await req(null,endpoint,'POST',values)).status,201);
+ }
  await db.prepare("UPDATE companies SET active=0 WHERE id='x'").run();assert.equal((await req(null,'branding?company=x-company')).status,404);
  assert.throws(()=>validateOwnerResponse({...response,rent_value:'-2'},'Locação'));assert.throws(()=>validateOwnerResponse({...response,accepted:'true'},'Locação'));
  }finally{await mf.dispose();}

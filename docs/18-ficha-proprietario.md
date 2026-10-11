@@ -33,3 +33,7 @@ Upload PNG/JPEG/WebP de até 5 MB, convertido no navegador para JPEG de até apr
 Antes de publicar: exportar backup privado, verificar restauração e integridade, executar testes, aplicar apenas migração 0008 e publicar os assets/Worker. Backups e segredos permanecem em .wrangler, ignorada pelo Git. Não remover tabelas novas para desfazer interface: preservar respostas recebidas.
 
 Validação automatizada cobre isolamento, configuração por papel, versões, rejeição de imagem inválida, CPF, Turnstile, concorrência de envio, aceite opcional, cancelamento e imutabilidade. Revisão visual com dados fictícios cobre desktop, celular e PDF. Teste humano de preenchimento com Turnstile real continua recomendado antes de enviar a clientes.
+
+## Finalidades (atualização)
+Cadastro e edição aceitam Locação, Venda e Locação e venda. Novas fichas usam a finalidade registrada na emissão: aluguel obrigatório para locação, venda obrigatória para venda, ambos para a finalidade conjunta. Declaração usa efetivação da operação correspondente. Fichas antigas mantêm finalidade e declaração originais; emitir um novo link após alterar o imóvel. PDFs preservam valores extras informados em fichas antigas.
+A migração 0009 amplia a restrição de finalidade reconstruindo a tabela dentro da migração, copiando todas as colunas e recriando índices e gatilhos. Validada com backup restaurado: registros idênticos e integridade referencial preservada.

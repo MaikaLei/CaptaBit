@@ -21,7 +21,7 @@ export function phone(value) {
 export function leadInput(body) {
   const result = Object.fromEntries(leadFields.map(key => [key, text(body[key], key === 'notes' ? 2000 : key === 'source_url' ? 1000 : 200)]));
   if (!result.proprietor_name) invalid('Preencha o nome do proprietário.');
-  if (!propertyTypes.includes(result.type) || !['Venda','Locação'].includes(result.purpose) || !result.street || !result.city) invalid('Preencha tipo, finalidade, logradouro e cidade.');
+  if (!propertyTypes.includes(result.type) || !['Venda','Locação','Locação e venda'].includes(result.purpose) || !result.street || !result.city) invalid('Preencha tipo, finalidade, logradouro e cidade.');
   if (result.state && !/^[A-Za-z]{2}$/.test(result.state)) invalid('Informe a UF com duas letras.');
   result.state = result.state.toUpperCase();
   if (result.source_url) {

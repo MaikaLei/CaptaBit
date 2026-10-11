@@ -82,7 +82,7 @@ export async function mountReports(api,user,message,initialFilters,mode='report'
     const extras=el('details',undefined,'followup');extras.append(el('summary','Dados do imóvel'));const edit=el('form',undefined,'form-grid');extras.append(edit);
     const names={proprietor_name:'Proprietário',type:'Tipo do imóvel',purpose:'Finalidade',street:'Logradouro',number:'Número',complement:'Complemento / unidade',district:'Bairro',city:'Cidade',state:'UF',postal_code:'CEP',source:'Origem',source_url:'Link de origem',notes:'Observações'};
     for(const [key,label] of Object.entries(names)){
-      const choices=key==='type'?options.propertyTypes:key==='purpose'?['Locação','Venda']:null;
+      const choices=key==='type'?options.propertyTypes:key==='purpose'?['Locação','Venda','Locação e venda']:null;
       const input=field(edit,key,label,choices?.map(v=>[v,v]));input.value=lead[key]||'';if(['proprietor_name','type','purpose','street','city'].includes(key))input.required=true;
     }
     if(user.role!=='CAPTADOR'){const owner=field(edit,'owner_id','Responsável',owners.filter(o=>o.active||o.id===lead.owner_id).map(o=>[o.id,o.name]));owner.value=lead.owner_id;}

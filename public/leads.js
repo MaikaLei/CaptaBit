@@ -24,7 +24,7 @@ export async function mountLeads(api,user,message,showFollowup) {
   const intro=element('p','Cadastre o essencial e complemente durante a pesquisa.');root.append(intro);
   const warning=element('p','Endereços e telefones são comparados entre as carteiras. Alertas não impedem o cadastro; revise-os antes de contatar.','note-inline'); root.append(warning);
   const basic=element('div',undefined,'form-grid'); create.append(basic);
-  field(basic,'proprietor_name'); field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda']);
+  field(basic,'proprietor_name'); field(basic,'type','Casa',options.propertyTypes); field(basic,'purpose','Locação',['Locação','Venda','Locação e venda']);
   for(const key of ['street','number','district','city']) field(basic,key);
   const more=element('details'); more.append(element('summary','Mais informações')); const extra=element('div',undefined,'form-grid'); more.append(extra); create.append(more);
   for(const key of ['complement','state','postal_code','source','source_url','notes']) field(extra,key);

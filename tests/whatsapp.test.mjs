@@ -29,3 +29,5 @@ test('Nome de administrador de outra empresa não vira Maikon',()=>{const text=w
    assert.ok(message.startsWith(greeting),time+' '+template.id);
   }
  });
+
+test('Finalidade conjunta aparece em todos os modelos',()=>{for(const template of whatsappTemplates){const message=whatsappMessage({street:'Rua Teste',purpose:'Locação e venda'},{name:'Carlos'},template.id);assert.match(message,/locação ou venda/);}});
