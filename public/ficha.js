@@ -1,5 +1,5 @@
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};const root=document.getElementById('sheet');
-const documentMode=location.pathname==='/ficha-documento.html',params=new URLSearchParams(location.search),token=location.hash.slice(1);
+const documentMode=['/ficha-documento','/ficha-documento.html'].includes(location.pathname),params=new URLSearchParams(location.search),token=location.hash.slice(1);
 const money=v=>v===''?'Não informado':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const labels={name:'Nome completo',cpf:'CPF',email:'E-mail',phone:'Telefone',address:'Endereço completo do imóvel',sale_value:'Valor de venda',rent_value:'Valor de aluguel',condo_value:'Condomínio mensal (se houver)',iptu_value:'IPTU — valor da parcela',notes:'Observações'};
 async function jsonFetch(url,options={}){const r=await fetch(url,{cache:'no-store',...options});const data=await r.json();if(!r.ok)throw Error(data.error||'Não foi possível abrir a ficha.');return data;}
@@ -20,3 +20,4 @@ if(!f.sitekey){notice.textContent='Envio indisponível. Contate a imobiliária.'
 content.onsubmit=async event=>{event.preventDefault();submit.disabled=true;notice.textContent='Enviando…';try{await jsonFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...Object.fromEntries(new FormData(content)),accepted:check.checked,turnstile:window.turnstile.getResponse(widget)})});root.replaceChildren(el('h1','Ficha enviada!'),el('p','A imobiliária recebeu seus dados e fará a conferência.'),el('p',check.checked?'Seu aceite foi registrado junto às condições apresentadas.':'Você enviou a ficha sem autorizar a divulgação.'));history.replaceState(null,'',location.pathname);}catch(e){notice.textContent=e.message;window.turnstile?.reset(widget);}};
 }
 }catch(error){root.replaceChildren(el('h1','Ficha indisponível'),el('p',error.message));}
+
