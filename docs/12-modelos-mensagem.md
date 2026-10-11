@@ -10,3 +10,5 @@ O seletor Modelo da mensagem fica junto ao botão Enviar mensagem de captação,
 O padrão continua Primeiro contato. Os modelos adaptam finalidade (locação/venda), imóvel/endereço e nome do corretor. Nenhum inclui o nome do proprietário. Revisão e envio ocorrem no WhatsApp, em nova guia. Se o navegador bloquear a abertura, aparece um link para abrir manualmente. Não há envio automático nem atualização automática de status.
 
 A abertura registra o nome do modelo no histórico, sem armazenar o texto. Escolher um modelo não altera a classificação do telefone. Contatos errados ou sem WhatsApp continuam bloqueados para abertura. Validação: modelos inválidos, requisito de contato correto, conteúdo por finalidade, preservação do nome do proprietário e histórico sem alteração do andamento. Sem migração de banco.
+
+Todos os modelos usam saudação pelo horário de Brasília (America/Sao_Paulo), calculada no servidor ao abrir o WhatsApp: Bom dia das 05:00 às 11:59, Boa tarde das 12:00 às 17:59 e Boa noite nos demais horários. Não depende do fuso do servidor nem do horário em que a tela foi carregada.
