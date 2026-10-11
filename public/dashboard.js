@@ -32,7 +32,7 @@ export async function mountDashboard(api,user,message,showReport) {
         const card=el('article',undefined,'dashboard-metric');card.append(el('strong',String(value)),el('span',name),el('small',hint));metrics.append(card);
       }
       content.append(metrics);
-      if(!data.total)content.append(el('p','Nenhuma captação cadastrada neste período. Ajuste as datas ou cadastre um imóvel em Contato inicial.'));
+      if(!data.total)content.append(el('p','Nenhuma captação cadastrada neste período. Ajuste as datas ou cadastre um imóvel em Cadastrar.'));
       content.append(el('h3','Resultados dos contatos'),el('small',`${data.summary.contacts_count} telefone(s) ativo(s). Telefones excluídos não entram no resumo.`));
       const contacts=el('div',undefined,'report-summary');for(const o of (await api('lead-options')).contactOutcomes){
         if(requestId!==sequence)return;

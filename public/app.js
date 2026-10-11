@@ -21,24 +21,25 @@ async function showWorkspace(user) {
   me = user; byId('login-view').hidden = true; byId('workspace').hidden = false;
   byId('greeting').textContent = `Olá, ${user.name}.`;
   byId('profile').textContent = user.role==='MASTER'?'Master · Dados antigos reservados':`${user.company_name} · ${user.role==='BROKER'?'Broker / gerente':'Captador'}`;
-  byId('admin-panel').hidden = user.role === 'CAPTADOR';
   function selectArea(area) {
-    for(const id of ['companies','dashboard','leads','reports']) {
-      byId(id+'-panel').hidden=id!==area;byId('nav-'+id).setAttribute('aria-pressed',String(id===area));byId('nav-'+id).className=id===area?'':'secondary';
+    for(const id of ['companies','dashboard','leads','reports','admin']) {
+      byId(id+'-panel').hidden=id!==area;
+      byId('nav-'+id).setAttribute('aria-pressed',String(id===area));
     }
-    byId('admin-panel').hidden=area!=='leads' || user.role==='CAPTADOR';
+    byId('overview-tabs').hidden=area!=='dashboard';message();
   }
-  async function showReport(filters) {selectArea('reports');message();try{await mountReports(api,user,message,filters);}catch(error){message(error.message);}}
-  byId('nav-companies').hidden=user.role!=='MASTER';
-  byId('user-form').hidden=user.role!=='BROKER';
-  byId('nav-companies').onclick=async()=>{selectArea('companies');message();try{await mountCompanies(api,message);}catch(error){message(error.message);}};
-  byId('nav-reports').onclick=()=>showReport();
-  byId('nav-dashboard').onclick=async()=>{selectArea('dashboard');message();try{await mountDashboard(api,user,message,showReport);}catch(error){message(error.message);}};
-  byId('nav-leads').onclick=async()=>{selectArea('leads');message();try{await mountLeads(api,user,message);}catch(error){message(error.message);}};
-  selectArea('leads');
-  await mountLeads(api, user, message);
-  if(user.role!=='CAPTADOR')await loadUsers();
-  if(user.role==='MASTER'){selectArea('companies');await mountCompanies(api,message);}
+  async function overview(reports=false,filters) {
+    selectArea('dashboard');byId('dashboard-panel').hidden=reports;byId('reports-panel').hidden=!reports;
+    byId('overview-indicators').setAttribute('aria-pressed',String(!reports));byId('overview-reports').setAttribute('aria-pressed',String(reports));
+    try {if(reports)await mountReports(api,user,message,filters,'report');else await mountDashboard(api,user,message,filters=>overview(true,filters));}catch(error){message(error.message);}
+  }
+  byId('nav-companies').hidden=user.role!=='MASTER';byId('nav-admin').hidden=user.role==='CAPTADOR';byId('user-form').hidden=user.role!=='BROKER';
+  byId('nav-companies').onclick=async()=>{selectArea('companies');try{await mountCompanies(api,message);}catch(error){message(error.message);}};
+  byId('nav-admin').onclick=async()=>{if(user.role==='CAPTADOR')return;selectArea('admin');try{await loadUsers();}catch(error){message(error.message);}};
+  byId('nav-reports').onclick=async()=>{selectArea('reports');try{await mountReports(api,user,message,undefined,'followup');}catch(error){message(error.message);}};
+  byId('nav-dashboard').onclick=()=>overview();byId('overview-indicators').onclick=()=>overview();byId('overview-reports').onclick=()=>overview(true);
+  byId('nav-leads').onclick=async()=>{selectArea('leads');try{await mountLeads(api,user,message);}catch(error){message(error.message);}};
+  if(user.role==='MASTER'){selectArea('companies');await mountCompanies(api,message);}else await overview();
 }
 async function loadUsers() {
   const { users } = await api('users'); const list = byId('users'); list.replaceChildren();

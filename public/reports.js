@@ -7,10 +7,11 @@ function field(form,name,label,choices) {
   wrapper.append(input);form.append(wrapper);return input;
 }
 function button(text,handler,className='secondary') {const b=el('button',text,className);b.type='button';b.addEventListener('click',handler);return b;}
-export async function mountReports(api,user,message,initialFilters) {
+export async function mountReports(api,user,message,initialFilters,mode='report') {
   const root=document.getElementById('reports-panel');root.replaceChildren();
   const options=await api('lead-options');
-  root.append(el('h2','Relatórios e acompanhamento'),el('p','Filtre as captações, acompanhe o andamento e exporte os resultados.'));
+  const reporting=mode==='report';
+  root.append(el('h2',reporting?'Relatórios':'Acompanhamento'),el('p',reporting?'Consulte os resultados e exporte as captações filtradas.':'Consulte cada captação, atualize o andamento e veja o histórico.'));
   const filters=el('form',undefined,'report-filters');
   field(filters,'from','Cadastradas a partir de').type='date';field(filters,'to','Cadastradas até').type='date';
   field(filters,'proprietor','Proprietário');field(filters,'property','Imóvel: rua, número, bairro ou cidade');
@@ -26,6 +27,7 @@ export async function mountReports(api,user,message,initialFilters) {
   const stages=el('div',undefined,'report-stages');const actions=el('div',undefined,'section-heading');const total=el('p');
   const download=button('Exportar CSV',exportCsv);actions.append(total,download);
   const list=el('div');const pager=el('div',undefined,'pager');const detail=el('section',undefined,'lead-detail');
+  summary.hidden=!reporting;stages.hidden=!reporting;download.hidden=!reporting;
   root.append(summary,stages,actions,list,pager,detail);
   let page=0;let applied=new URLSearchParams(initialFilters);let requestId=0;
   for(const [name,value] of applied){const input=filters.elements.namedItem(name);if(input)input.value=value;}
@@ -48,7 +50,7 @@ export async function mountReports(api,user,message,initialFilters) {
         const card=el('article',undefined,'report-row');const info=el('div');
         info.append(el('h3',row.proprietor_name||'Proprietário a preencher'),el('p',`${row.type} · ${row.street}, ${row.number||'s/n'} ${row.complement} · ${row.city}`),el('small',`${row.purpose} · ${row.captador} · Cadastro: ${date(row.created_at)}`));
         const action=button('Acompanhar',()=>open(row.id).catch(e=>message(e.message)));
-        const status=el('div');status.append(el('span',row.status,'badge'),el('small',`${row.contacts_count} telefone(s) ativo(s)`),action);card.append(info,status);list.append(card);
+        const status=el('div');status.append(el('span',row.status,'badge'),el('small',`${row.contacts_count} telefone(s) ativo(s)`));if(!reporting)status.append(action);card.append(info,status);list.append(card);
       }
       const previous=button('Anterior',()=>{page--;run();});previous.disabled=page===0;
       const next=button('Próxima',()=>{page++;run();});next.disabled=(page+1)*20>=data.total;

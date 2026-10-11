@@ -11,9 +11,21 @@
     <p class="note">Acesso exclusivo para usuários cadastrados pelo administrador.</p>
   </section>
   <section id="workspace" hidden>
-    <header><img src="/assets/brand/captabit-logo-original.png" alt="CaptaBit by ZapBits"><button id="logout" class="secondary">Sair</button></header>
-    <div class="welcome"><span class="eyebrow">BEM-VINDO AO CAPTABIT</span><h1 id="greeting"></h1><p id="profile"></p></div>
-    <nav class="workspace-nav" aria-label="Áreas do sistema"><button id="nav-companies" class="secondary" aria-pressed="false" hidden>Imobiliárias</button><button id="nav-dashboard" class="secondary" aria-pressed="false">Visão geral</button><button id="nav-leads" aria-pressed="true">Contato inicial</button><button id="nav-reports" class="secondary" aria-pressed="false">Relatórios e acompanhamento</button></nav>
+    <aside class="sidebar">
+      <img class="sidebar-brand" src="/assets/brand/captabit-logo-original.png" alt="CaptaBit by ZapBits">
+      <span class="eyebrow">SEU ESPAÇO DE CAPTAÇÃO</span>
+      <nav class="workspace-nav" aria-label="Áreas do sistema">
+        <button id="nav-dashboard" aria-pressed="false">Visão Geral</button>
+        <button id="nav-leads" aria-pressed="false">Cadastrar</button>
+        <button id="nav-reports" aria-pressed="false">Acompanhamento</button>
+        <button id="nav-admin" aria-pressed="false" hidden>Equipe</button>
+        <button id="nav-companies" aria-pressed="false" hidden>Imobiliárias</button>
+      </nav>
+      <div class="sidebar-footer"><small>Menos cadastro, mais captação.</small><button id="logout" class="secondary">Sair da conta</button></div>
+    </aside>
+    <div class="workspace-content">
+    <div class="welcome"><div><span class="eyebrow">BEM-VINDO AO CAPTABIT</span><h1 id="greeting"></h1></div><p id="profile"></p></div>
+    <div id="overview-tabs" class="overview-tabs" hidden aria-label="Visão geral"><button id="overview-indicators" class="secondary">Indicadores</button><button id="overview-reports" class="secondary">Relatórios e exportação</button></div>
     <section id="companies-panel" class="panel" hidden></section>
     <section id="dashboard-panel" class="panel" hidden></section>
     <section id="reports-panel" class="panel" hidden></section>
@@ -22,6 +34,7 @@
       <form id="user-form" class="user-form"><label>Nome<input name="name" required maxlength="100" autocomplete="off"></label><label>E-mail<input name="email" type="email" required maxlength="254" autocomplete="off"></label><label>Perfil<select name="role"><option value="CAPTADOR">Captador</option></select></label><label>Senha inicial<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"><small>De 12 a 128 caracteres.</small></label><button type="submit">Cadastrar usuário</button></form>
       <h3>Usuários cadastrados</h3><ul id="users"></ul>
     </section>
+    </div>
   </section>
   <p id="message" role="status" aria-live="polite"></p>
 </main>

@@ -3,7 +3,7 @@ const labels = { message_model:'Modelo da mensagem',proprietor_name:'Proprietár
 const element = (tag, value, className) => { const node = document.createElement(tag); if (value !== undefined) node.textContent=value; if (className) node.className=className; return node; };
 const button = (label, action, className='secondary') => { const node=element('button',label,className); node.type='button'; node.addEventListener('click',action); return node; };
 function field(form,key,value='',choices) {
-  const label=element('label',labels[key] || key); let input;
+  const label=element('label',labels[key] || key); label.className='field-'+key; let input;
   if (choices) { input=element('select'); for (const item of choices) { const option=element('option', typeof item==='string' ? item : item.name); option.value=typeof item==='string' ? item : item.id; input.append(option); } }
   else input=element(key==='notes' ? 'textarea' : 'input');
   input.name=key; input.value=value ?? ''; input.maxLength=key==='notes'?2000:key==='source_url'?1000:200;
@@ -21,7 +21,7 @@ export async function mountLeads(api,user,message) {
   if (user.role!=='CAPTADOR') owners=(await api('users?include_deleted=1')).users;
   const heading=element('div',undefined,'section-heading'); heading.append(element('h2',user.role==='MASTER'?'Base reservada do Master':user.role==='BROKER'?'Captações da equipe':'Minhas captações')); root.append(heading);
   const create=element('form',undefined,'lead-form'); create.hidden=true;
-  heading.append(button('+ Nova captação',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));
+  heading.append(button('+ Cadastrar imóvel',()=>{ create.hidden=!create.hidden; if(!create.hidden) create.querySelector('[name=proprietor_name]').focus(); },'primary'));
   root.append(element('p','Cadastre o essencial e complemente durante a pesquisa.'));
   const warning=element('p','Endereços e telefones são comparados entre as carteiras. Alertas não impedem o cadastro; revise-os antes de contatar.','note-inline'); root.append(warning);
   const basic=element('div',undefined,'form-grid'); create.append(basic);
@@ -33,7 +33,7 @@ export async function mountLeads(api,user,message) {
   bindForm(create,'Salvar captação',async data=>{ data.phones=data.phones.split(/[;\n]/).map(x=>x.trim()).filter(Boolean); const check=await api('leads/duplicates','POST',data); if(!await confirmAlerts(check.duplicates)) return; const result=await api('leads','POST',data); create.reset(); create.hidden=true; page=0; await load(); await openLead(result.lead.id); },message); root.append(create);
   const search=element('form',undefined,'search-bar'); const searchLabel=element('label','Buscar endereço, bairro, cidade, proprietário ou telefone'); const searchInput=element('input'); searchInput.name='q'; searchInput.maxLength=100; searchLabel.append(searchInput); search.append(searchLabel); const filters=element('details'); filters.append(element('summary','Filtro de acompanhamento')); field(filters,'status','',['',...options.leadStatuses]); search.append(filters);
   bindForm(search,'Buscar',async data=>{ query=data.q; filter=data.status; page=0; await load(); },message); root.append(search);
-  const list=element('div',undefined,'lead-list'); const pager=element('div',undefined,'pager'); const detail=element('section',undefined,'lead-detail'); root.append(list,pager,detail);
+  const list=element('div',undefined,'lead-list'); const pager=element('div',undefined,'pager'); const detail=element('section',undefined,'lead-detail'); const browser=element('div',undefined,'lead-browser');const portfolio=element('div',undefined,'lead-portfolio');portfolio.append(list,pager);browser.append(portfolio,detail);root.append(browser);
   async function load() {
     const result=await api(`leads?${new URLSearchParams({q:query,status:filter,page:String(page)})}`); list.replaceChildren(); pager.replaceChildren();
     if(!result.leads.length) list.append(element('p','Nenhuma captação encontrada.'));
@@ -46,9 +46,9 @@ export async function mountLeads(api,user,message) {
     pager.append(element('span',`Página ${page+1}`),button('Próxima',()=>{ page++; load().catch(error=>message(error.message)); })); pager.lastChild.disabled=!result.hasMore;
   }
   async function openLead(id,scroll=true) {
-    const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); detail.append(element('h2',`${lead.type} · ${lead.street}`));
+    const {lead,contacts,duplicates}=await api(`leads/${id}`); detail.replaceChildren(); browser.classList.add('has-detail'); detail.append(element('h2',`${lead.type} · ${lead.street}`));
     detail.append(element('p',`Proprietário: ${lead.proprietor_name || 'Preencher no cadastro'}`));
-    detail.append(button('Fechar detalhes',()=>detail.replaceChildren()));
+    detail.append(button('Fechar detalhes',()=>{detail.replaceChildren();browser.classList.remove('has-detail');}));
     const alertBox=element('aside',undefined,'note-inline'); renderAlerts(alertBox,duplicates); detail.append(alertBox);
     const followup=element('details',undefined,'followup'); followup.append(element('summary','Dados do imóvel e acompanhamento'));
     const edit=element('form',undefined,'lead-form'); const grid=element('div',undefined,'form-grid'); edit.append(grid);
