@@ -39,6 +39,15 @@ test('Ficha pública: isolamento, versões, CPF, aceite, finalidades e envio ún
   if(purpose==='Locação e venda')assert.equal((await req(null,endpoint,'POST',{...values,rent_value:''})).status,400);
   assert.equal((await req(null,endpoint,'POST',values)).status,201);
  }
+
+ const companyResponse={...response,document_type:'CNPJ',cnpj:'11.222.333/0001-81',company_name:'Empresa de Teste',sale_value:'300000'};
+ assert.equal(validateOwnerResponse(companyResponse,'Locação e venda').cnpj,'11222333000181');
+ assert.equal(validateOwnerResponse({...companyResponse,cnpj:'12.ABC.345/01DE-35'},'Locação e venda').cnpj,'12ABC34501DE35');
+ for(const patch of [{cnpj:'11222333000182'},{company_name:''},{cpf:''},{cpf:'ABC52998224725'},{cpf:'11111111111'},{name:''},{document_type:'OUTRO'},{declaration:'texto adulterado'}])assert.throws(()=>validateOwnerResponse({...companyResponse,...patch},'Locação e venda'));
+ assert.throws(()=>validateOwnerResponse({...companyResponse,document_type:'CPF'},'Locação e venda'));
+ const cForm=await(await req('cx','leads/lx/owner-forms','POST',{})).json();const cEndpoint='owner-form/'+new URL(cForm.url).hash.slice(1);const cPublic=await(await req(null,cEndpoint)).json();assert.match(cPublic.declaration_cnpj,/representante autorizado da empresa/);
+ assert.equal((await req(null,cEndpoint,'POST',companyResponse)).status,201);
+ const cDoc=await(await req('cx','leads/lx/owner-forms/'+cForm.id)).json();assert.equal(cDoc.response.document_type,'CNPJ');assert.equal(cDoc.response.company_name,companyResponse.company_name);assert.equal(cDoc.response.declaration,cPublic.declaration_cnpj);assert.equal(cDoc.response.cpf,'52998224725');assert.equal((await req(null,cEndpoint)).status,410);
  await db.prepare("UPDATE companies SET active=0 WHERE id='x'").run();assert.equal((await req(null,'branding?company=x-company')).status,404);
  assert.throws(()=>validateOwnerResponse({...response,rent_value:'-2'},'Locação'));assert.throws(()=>validateOwnerResponse({...response,accepted:'true'},'Locação'));
  }finally{await mf.dispose();}
